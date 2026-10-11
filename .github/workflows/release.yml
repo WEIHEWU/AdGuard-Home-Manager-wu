@@ -1,0 +1,37 @@
+name: Publish Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.24.3
+          name: "AdGuard Home Manager (wu修改版) v2.24.3"
+          body: |
+            ### AdGuard Home Manager (wu修改版) `v2.24.3`
+
+            专为 **[AdGuard Home For Android (wu修改版)](https://github.com/WEIHEWU/AdGuard-Home-For-Android-wu)** 定制的配套管理器客户端。
+
+            #### 主要更新与优化
+            - **UI 组件可见性修复**：修复上游 Miuix 主题下单选框 (`CustomRadioListTile`) 选中/未选中圆圈不可见的问题；
+            - **`$important` 最高优先级规则**：在查询日志中点击一键放行或拦截域名时，自动追加 `$important` 最高优先级修饰符，确保用户手动规则 100% 覆盖订阅列表；
+            - **`PROXY_URL` 代理订阅即时联动**：在【设置 -> 模块设置】保存 `PROXY_URL` 订阅链接后，自动触发后台 `ProxyConfig.sh --once` 立即同步至 Box/Clash 配置并生效，无需重启手机；
+            - **模块自动探索与随机端口同步**：启动时通过 Root 自动读取 `/data/adb/agh/bin/AdGuardHome.yaml` 最新监听地址与凭据，完美适配开机/软重启随机端口机制。
+          files: |
+            releases/AdGuardHomeManager_wu修改版.apk

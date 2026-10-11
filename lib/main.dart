@@ -1,0 +1,174 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:dynamic_color/dynamic_color.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:adguard_home_manager/l10n/app_localizations.dart';
+
+import 'package:adguard_home_manager/widgets/layout.dart';
+import 'package:adguard_home_manager/widgets/menu_bar.dart';
+import 'package:adguard_home_manager/widgets/miuix_theme_scope.dart';
+
+import 'package:adguard_home_manager/providers/logs_provider.dart';
+import 'package:adguard_home_manager/providers/app_config_provider.dart';
+import 'package:adguard_home_manager/providers/dns_provider.dart';
+import 'package:adguard_home_manager/providers/filtering_provider.dart';
+import 'package:adguard_home_manager/providers/rewrite_rules_provider.dart';
+import 'package:adguard_home_manager/providers/status_provider.dart';
+import 'package:adguard_home_manager/providers/servers_provider.dart';
+import 'package:adguard_home_manager/constants/colors.dart';
+import 'package:adguard_home_manager/config/globals.dart';
+import 'package:adguard_home_manager/config/theme.dart';
+import 'package:adguard_home_manager/services/db/database.dart';
+import 'package:adguard_home_manager/classes/http_override.dart';
+import 'package:adguard_home_manager/services/module_config_service.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+  final sharedPreferences = await SharedPreferences.getInstance();
+
+  final AppConfigProvider appConfigProvider =
+      AppConfigProvider(sharedPreferencesInstance: sharedPreferences);
+  final ServersProvider serversProvider = ServersProvider();
+  final StatusProvider statusProvider = StatusProvider();
+  final FilteringProvider filtersProvider = FilteringProvider();
+  final RewriteRulesProvider rewriteRulesProvider = RewriteRulesProvider();
+  final DnsProvider dnsProvider = DnsProvider();
+  final LogsProvider logsProvider = LogsProvider();
+  final ModuleConfigService moduleConfigService = ModuleConfigService();
+
+  DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+  if (Platform.isAndroid) {
+    final androidInfo = await deviceInfo.androidInfo;
+    appConfigProvider.setAndroidInfo(androidInfo);
+  }
+  if (Platform.isIOS) {
+    final iosInfo = await deviceInfo.iosInfo;
+    appConfigProvider.setIosInfo(iosInfo);
+  }
+
+  if (sharedPreferences.getBool('overrideSslCheck') == true) {
+    HttpOverrides.global = MyHttpOverrides();
+  }
+
+  final dbData = await loadDb();
+  serversProvider.setDbInstance(dbData['dbInstance']);
+  await serversProvider.saveFromDb(dbData['servers']);
+
+  appConfigProvider.saveFromSharedPreferences();
+
+  PackageInfo appInfo = await PackageInfo.fromPlatform();
+  appConfigProvider.setAppInfo(appInfo);
+
+  if (Platform.isAndroid) {
+    final yamlAddress = await moduleConfigService.readHttpAddress();
+    if (yamlAddress != null && yamlAddress.isNotEmpty) {
+      appConfigProvider.setModuleHttpAddress(yamlAddress);
+      await serversProvider.autoConnectModule(yamlAddress);
+    }
+  }
+
+  void startApp() => runApp(MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: ((context) => serversProvider)),
+          ChangeNotifierProvider(create: ((context) => appConfigProvider)),
+          ChangeNotifierProvider(create: ((context) => statusProvider)),
+          ChangeNotifierProvider(create: ((context) => logsProvider)),
+          ChangeNotifierProvider(create: ((context) => filtersProvider)),
+          ChangeNotifierProvider(create: ((context) => rewriteRulesProvider)),
+          ChangeNotifierProvider(create: ((context) => dnsProvider)),
+          ChangeNotifierProxyProvider2<ServersProvider, StatusProvider,
+              FilteringProvider>(
+            create: (context) => filtersProvider,
+            update: (context, servers, status, filtering) =>
+                filtering!..update(servers, status),
+          ),
+          ChangeNotifierProxyProvider<ServersProvider, StatusProvider>(
+            create: (context) => statusProvider,
+            update: (context, servers, status) => status!..update(servers),
+          ),
+          ChangeNotifierProxyProvider<ServersProvider, LogsProvider>(
+            create: (context) => logsProvider,
+            update: (context, servers, logs) => logs!..update(servers),
+          ),
+          ChangeNotifierProxyProvider<ServersProvider, RewriteRulesProvider>(
+            create: (context) => rewriteRulesProvider,
+            update: (context, servers, rewrite) => rewrite!..update(servers),
+          ),
+          ChangeNotifierProxyProvider<ServersProvider, DnsProvider>(
+            create: (context) => dnsProvider,
+            update: (context, servers, dns) => dns!..update(servers),
+          ),
+        ],
+        child: const Main(),
+      ));
+
+  startApp();
+}
+
+class Main extends StatelessWidget {
+  const Main({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final appConfigProvider = Provider.of<AppConfigProvider>(context);
+
+    return DynamicColorBuilder(
+      builder: (lightDynamic, darkDynamic) {
+        final supportsDynamicTheme =
+            lightDynamic != null && darkDynamic != null;
+        appConfigProvider.setSupportsDynamicTheme(supportsDynamicTheme);
+
+        final themeMode = appConfigProvider.selectedTheme;
+        final brightness = switch (themeMode) {
+          ThemeMode.light => Brightness.light,
+          ThemeMode.dark => Brightness.dark,
+          ThemeMode.system => MediaQuery.platformBrightnessOf(context),
+        };
+
+        final staticSeed = colors[appConfigProvider.staticColor];
+        final useMonet =
+            appConfigProvider.useDynamicColor == true && supportsDynamicTheme;
+        final lightSeed = useMonet ? lightDynamic.primary : staticSeed;
+        final darkSeed = useMonet ? darkDynamic.primary : staticSeed;
+
+        return MiuixThemeScope(
+          lightSeed: lightSeed,
+          darkSeed: darkSeed,
+          brightness: brightness,
+          builder: (context, lightColors, darkColors) => MaterialApp(
+            title: 'AdGuard Home Manager (wu修改版)',
+            theme: miuixThemeData(lightColors, Brightness.light),
+            darkTheme: miuixThemeData(darkColors, Brightness.dark),
+            themeMode: themeMode,
+            debugShowCheckedModeBanner: false,
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+              AppLocalizations.delegate,
+            ],
+            supportedLocales: const [
+              Locale('en', ''),
+              Locale('zh', ''),
+              Locale('zh', 'CN'),
+            ],
+            scaffoldMessengerKey: scaffoldMessengerKey,
+            navigatorKey: globalNavigatorKey,
+            builder: (context, child) => CustomMenuBar(
+              child: child!,
+            ),
+            home: const Layout(),
+          ),
+        );
+      },
+    );
+  }
+}
