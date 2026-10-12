@@ -147,8 +147,12 @@ class _EncryptionSettingsState extends State<EncryptionSettings> {
       final data = result.content as EncryptionValidationResult;
       if (data.isObject == true) {
         final object = data.encryptionValidation!;
+        final hasWarning = object.warningValidation != null && object.warningValidation != '';
+        final certificateIsSound = object.validCert == true &&
+          object.validKey == true &&
+          object.validPair == true;
         setState(() {
-          if (object.warningValidation != null && object.warningValidation != '') {
+          if (hasWarning && !certificateIsSound) {
             _dataValidApi = false;
             validDataError = object.warningValidation;
           }
@@ -158,6 +162,14 @@ class _EncryptionSettingsState extends State<EncryptionSettings> {
           }
           certKeyValid = object;
         });
+        if (hasWarning && certificateIsSound) {
+          showSnackbar(
+            appConfigProvider: Provider.of<AppConfigProvider>(context, listen: false),
+            label: object.warningValidation!,
+            color: Colors.red,
+            duration: const Duration(seconds: 6),
+          );
+        }
       }
       else {
         setState(() {

@@ -1659,6 +1659,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get customizationDescription => '自定义此应用程序';
 
   @override
+  String get language => '语言';
+
+  @override
+  String get languageDescription => '更改应用程序的显示语言';
+
+  @override
   String get color => '颜色';
 
   @override
@@ -4184,6 +4190,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get customizationDescription => '自定义此应用程序';
+
+  @override
+  String get language => '语言';
+
+  @override
+  String get languageDescription => '更改应用程序的显示语言';
 
   @override
   String get color => '颜色';

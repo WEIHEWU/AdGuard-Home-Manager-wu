@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:adguard_home_manager/classes/http_client.dart';
 import 'package:adguard_home_manager/models/server.dart';
+import 'package:adguard_home_manager/services/local_network_permission.dart';
 
 enum AuthStatus { 
   success, 
@@ -20,6 +21,7 @@ enum AuthStatus {
 class ServerAuth {
   static Future<AuthStatus> login(Server server) async {
     try {
+      await LocalNetworkPermission.ensureGranted(server.domain);
       final body = {
         "name": server.user,
         "password": server.password
@@ -62,6 +64,7 @@ class ServerAuth {
 
   static Future<AuthStatus> loginHA(Server server) async {
     try {
+      await LocalNetworkPermission.ensureGranted(server.domain);
       final result = await HttpRequestClient.get(urlPath: "/status", server: server);
       if (result.successful) {
         return AuthStatus.success;

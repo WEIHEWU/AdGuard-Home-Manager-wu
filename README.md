@@ -4,12 +4,17 @@
 
 基于 Flutter 开发的 **AdGuard Home Manager (wu修改版)**，专为 [AdGuard Home For Android (wu修改版)](https://github.com/WEIHEWU/AdGuard-Home-For-Android-wu) 本地去广告模块深度定制。
 
-当前版本：`2.24.3 (wu修改版)`（`versionCode 168`）。
+当前版本：`2.24.4 (wu修改版)`（`versionCode 169`，已同步跟进上游 `JGeek00/adguard-home-manager` `v2.22.2` 最新更新）。
 
 ---
 
 ## ✨ 定制特性 (wu修改版)
 
+- **同步上游 `v2.22.1` ~ `v2.22.2` 最新核心修复与特性**：
+  - 修复新版 AdGuard Home (`v0.108.0-b.84` 及以上)「加密设置」页面因 `allow_unencrypted_doh` 字段移除导致的加载报错；
+  - 新增 Android 16/17+ 本地网络权限 (`ACCESS_LOCAL_NETWORK`) 自动检测与请求，解决新版 Android 拦截本地/局域网连接问题；
+  - 新增应用内语言切换器（「设置 -> 应用设置 -> 语言」支持切换「跟随系统 / 简体中文 / English」）及 Android 13+ 系统分应用语言同步；
+  - 优化加密证书无害提示的 Snackbar 展示体验。
 - **模块零配置自动连接**：
   - 启动时通过 Root 权限自动解析 `/data/adb/agh/bin/AdGuardHome.yaml` 中的动态随机管理端口 (`http.address`)，开机或软重启换端口后打开 App 即可无缝重连。
 - **`$important` 最高优先级一键放行/拦截**：

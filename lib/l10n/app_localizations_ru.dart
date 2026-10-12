@@ -1715,6 +1715,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get customizationDescription => 'Настройте внешний вид приложения';
 
   @override
+  String get language => 'Language';
+
+  @override
+  String get languageDescription => 'Change the language of the app';
+
+  @override
   String get color => 'Цветовая тема';
 
   @override

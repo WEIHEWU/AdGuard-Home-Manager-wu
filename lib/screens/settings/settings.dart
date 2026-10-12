@@ -5,6 +5,7 @@ import 'package:adguard_home_manager/l10n/app_localizations.dart';
 import 'package:adguard_home_manager/screens/settings/logs_settings/logs_settings.dart';
 import 'package:adguard_home_manager/screens/settings/statistics_settings/statistics_settings.dart';
 import 'package:adguard_home_manager/screens/settings/customization/customization.dart';
+import 'package:adguard_home_manager/screens/settings/language/language_settings.dart';
 import 'package:adguard_home_manager/screens/settings/dns/dns.dart';
 import 'package:adguard_home_manager/screens/settings/dns_rewrites/dns_rewrites.dart';
 
@@ -108,7 +109,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     setState(() => _proxyUrlSaving = false);
     showSnackbar(
       appConfigProvider: appConfigProvider,
-      label: ok ? '订阅链接已保存，重启设备后生效' : '保存失败，请检查 Root 权限',
+      label: ok ? '订阅链接已保存并立即生效' : '保存失败，请检查 Root 权限',
       color: ok ? Colors.green : Colors.red,
     );
   }
@@ -216,7 +217,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
                             child: Text(
-                              _proxyUrlLoading ? '正在读取当前配置…' : '保存后需重启设备或模块后生效',
+                              _proxyUrlLoading ? '正在读取当前配置…' : '保存或清空后立即自动切换代理模式（无需重启设备）',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Theme.of(context)
@@ -287,6 +288,15 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                                 .customizationDescription,
                             thisItem: 4,
                             screenToNavigate: const Customization(),
+                            twoColumns: widget.twoColumns,
+                          ),
+                          _SettingsTile(
+                            icon: Icons.translate_rounded,
+                            title: AppLocalizations.of(context)!.language,
+                            subtitle: AppLocalizations.of(context)!
+                                .languageDescription,
+                            thisItem: 5,
+                            screenToNavigate: const LanguageSettings(),
                             twoColumns: widget.twoColumns,
                           ),
                           SectionLabel(

@@ -63,6 +63,7 @@ void main() async {
   await serversProvider.saveFromDb(dbData['servers']);
 
   appConfigProvider.saveFromSharedPreferences();
+  await appConfigProvider.syncLanguageWithSystem();
 
   PackageInfo appInfo = await PackageInfo.fromPlatform();
   appConfigProvider.setAppInfo(appInfo);
@@ -148,6 +149,7 @@ class Main extends StatelessWidget {
             theme: miuixThemeData(lightColors, Brightness.light),
             darkTheme: miuixThemeData(darkColors, Brightness.dark),
             themeMode: themeMode,
+            locale: appConfigProvider.selectedLocale,
             debugShowCheckedModeBanner: false,
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
