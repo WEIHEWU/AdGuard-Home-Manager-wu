@@ -182,7 +182,19 @@ class FilteringProvider with ChangeNotifier {
   }
 
   Future<bool> addCustomRule(String rule) async {
-    final List<String> newRules = filtering!.userRules;
+    final String trimmed = rule.trim();
+    final Set<String> toRemove = {trimmed};
+    if (trimmed.startsWith('@@||')) {
+      final base = trimmed.substring(2);
+      toRemove.add(base);
+      toRemove.add(base.replaceAll('\$important', ''));
+    } else if (trimmed.startsWith('||')) {
+      toRemove.add('@@$trimmed');
+      toRemove.add('@@${trimmed.replaceAll('\$important', '')}');
+    }
+    final List<String> newRules = filtering!.userRules
+        .where((r) => !toRemove.contains(r.trim()))
+        .toList();
     newRules.add(rule);
 
     final result =

@@ -236,12 +236,18 @@ class StatusProvider with ChangeNotifier {
     if (rules.successful == true) {
       FilteringStatus oldStatus = _serverStatus!.filteringStatus;
 
+      final exactRules = {
+        "||$domain^",
+        "||$domain^\$important",
+        "@@||$domain^",
+        "@@||$domain^\$important",
+      };
       List<String> newRules = (rules.content as FilteringStatus)
           .userRules
-          .where((d) => !d.contains(domain))
+          .where((d) => !exactRules.contains(d.trim()))
           .toList();
       if (newStatus == 'block') {
-        newRules.add("||$domain^");
+        newRules.add("||$domain^\$important");
       } else if (newStatus == 'unblock') {
         newRules.add("@@||$domain^\$important");
       }

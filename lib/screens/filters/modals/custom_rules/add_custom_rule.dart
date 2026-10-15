@@ -28,7 +28,7 @@ class _AddCustomRuleState extends State<AddCustomRule> {
 
   _BlockingPresets _preset = _BlockingPresets.block;
 
-  bool _addImportant = false;
+  bool _addImportant = true;
 
   bool _checkValidValues() {
     if (
