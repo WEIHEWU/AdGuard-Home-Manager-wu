@@ -21,14 +21,22 @@ jobs:
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.24.4
-          name: "AdGuard Home Manager (wu修改版) v2.24.4"
+          tag_name: v2.24.5
+          name: "AdGuard Home Manager (wu修改版) v2.24.5"
           body: |
-            ### AdGuard Home Manager (wu修改版) `v2.24.4`
+            ### AdGuard Home Manager (wu修改版) `v2.24.5`
 
             专为 **[AdGuard Home For Android (wu修改版)](https://github.com/WEIHEWU/AdGuard-Home-For-Android-wu)** 定制的配套管理器客户端。
 
-            #### 🆕 v2.24.4 跟进上游 (`JGeek00/adguard-home-manager` v2.22.1 ~ v2.22.2) 更新
+            #### 🆕 v2.24.5 更新内容
+            - **点击「拦截 / 放行」域名自动添加 `$important`**：
+              - 在查询日志列表及日志详情页点击 **「拦截域名」** 时，现已与「放行域名」保持一致，自动生成高优先级规则 `||domain^$important`（此前仅生成普通 `||domain^`，容易被白名单订阅如 `allow.txt` 覆盖导致手动拦截失效）；
+              - 手动添加自定义规则弹窗中的 **「添加 `$important`」** 开关默认设为开启。
+            - **修复切换拦截/放行时误删同根子域名规则的隐患**：
+              - 修复原版在切换域名状态时使用子串包含匹配（`!d.contains(domain)`）导致操作主域名（如 `google.com`）时会把所有相关子域名规则（如 `play.google.com`、`accounts.google.com`）及包含该域名的注释一并误删的问题，改为精确匹配目标域名规则；
+              - 在客户端专属放行/拦截及手动添加规则时自动去重并清理冲突的反向规则。
+
+            #### 🔄 v2.24.4 跟进上游 (`JGeek00/adguard-home-manager` v2.22.1 ~ v2.22.2) 更新
             - **修复新版 AdGuard Home (`v0.108.0-b.84+`) 加密设置报错**：适配 AdGuard Home Schema v34 移除 `/tls/status` 中 `allow_unencrypted_doh` 字段的变更，修复打开加密设置时的解析异常；
             - **修复 Android 16/17+ 本地/局域网连接拦截**：新增 `ACCESS_LOCAL_NETWORK` 本地网络权限声明与自动检测请求，确保在新版 Android 本地网络保护机制下正常连接本地 `127.0.0.1` 或局域网服务端；
             - **优化加密证书提示体验**：当证书有效而仅返回建议性警告时，改为弹出 6 秒底部 Snackbar 提示，不再常驻顶部红色错误卡片；
