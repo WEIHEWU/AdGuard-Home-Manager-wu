@@ -16,7 +16,7 @@
         tools:ignore="ProtectedPermissions" />
 
     <application
-        android:label="AdGuard Home Manager (wu修改版)"
+        android:label="AdGuard Home Manager"
         android:name="${applicationName}"
         android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher"

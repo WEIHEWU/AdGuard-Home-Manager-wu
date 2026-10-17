@@ -125,4 +125,148 @@ class ModuleConfigService {
       return false;
     }
   }
+
+  Future<Map<String, dynamic>> getModuleDiagnostics() async {
+    if (!_isAndroid) {
+      return {
+        'running': false,
+        'pid': '',
+        'dnsPort': '',
+        'natOk': false,
+        'sniOk': false,
+      };
+    }
+    try {
+      const cmd = '''
+pid=\$(pidof AdGuardHome 2>/dev/null | awk '{print \$1}')
+dns_port=\$(sed -n 's/^redir_port=//p' /data/adb/agh/scripts/config.prop 2>/dev/null | head -n 1)
+iptables -w 2 -t nat -C OUTPUT -j ADGUARD >/dev/null 2>&1 && nat_ok=1 || nat_ok=0
+iptables -w 2 -t filter -C OUTPUT -j AGH_SNI >/dev/null 2>&1 && sni_ok=1 || sni_ok=0
+echo "PID=\$pid"
+echo "PORT=\$dns_port"
+echo "NAT=\$nat_ok"
+echo "SNI=\$sni_ok"
+''';
+      final result = await Process.run('su', ['-c', cmd]);
+      if (result.exitCode != 0) {
+        return {
+          'running': false,
+          'pid': '',
+          'dnsPort': '',
+          'natOk': false,
+          'sniOk': false,
+        };
+      }
+      String pid = '';
+      String dnsPort = '';
+      bool natOk = false;
+      bool sniOk = false;
+      for (final line in result.stdout.toString().split('\n')) {
+        final t = line.trim();
+        if (t.startsWith('PID=')) pid = t.substring(4).trim();
+        if (t.startsWith('PORT=')) dnsPort = t.substring(5).trim();
+        if (t.startsWith('NAT=')) natOk = t.substring(4).trim() == '1';
+        if (t.startsWith('SNI=')) sniOk = t.substring(4).trim() == '1';
+      }
+      return {
+        'running': pid.isNotEmpty,
+        'pid': pid,
+        'dnsPort': dnsPort,
+        'natOk': natOk,
+        'sniOk': sniOk,
+      };
+    } catch (_) {
+      return {
+        'running': false,
+        'pid': '',
+        'dnsPort': '',
+        'natOk': false,
+        'sniOk': false,
+      };
+    }
+  }
+
+  Future<String> readModuleLogs({int maxLines = 150}) async {
+    if (!_isAndroid) return '';
+    try {
+      final result = await Process.run(
+        'su',
+        ['-c', 'tail -n $maxLines /data/adb/agh/agh.log 2>/dev/null'],
+      );
+      if (result.exitCode != 0) return '';
+      return result.stdout.toString().trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<bool> clearModuleLogs() async {
+    if (!_isAndroid) return false;
+    try {
+      final result = await Process.run(
+        'su',
+        ['-c', ': > /data/adb/agh/agh.log 2>/dev/null'],
+      );
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> reloadFirewallRules() async {
+    if (!_isAndroid) return false;
+    try {
+      final result = await Process.run(
+        'su',
+        [
+          '-c',
+          'pkill -f "/data/adb/agh/scripts/iptables.sh" 2>/dev/null; sh /data/adb/agh/scripts/iptables.sh >/dev/null 2>&1 &'
+        ],
+      );
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> cleanAppAdCaches() async {
+    if (!_isAndroid) return false;
+    try {
+      final result = await Process.run(
+        'su',
+        [
+          '-c',
+          'rm -f /data/adb/agh/last_clean_time && rmdir /data/adb/agh/cache_clean.lock 2>/dev/null; sh /data/adb/agh/scripts/NoAdsService.sh >/dev/null 2>&1'
+        ],
+      );
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<String>> readFactoryUserRules() async {
+    if (!_isAndroid) return [];
+    try {
+      const cmd = '''
+if [ -s /data/adb/agh/bin/default_user_rules.txt ]; then
+  cat /data/adb/agh/bin/default_user_rules.txt
+elif [ -s /data/adb/agh/backup/AdGuardHome.yaml ]; then
+  awk '/^user_rules:/{f=1;next} f&&/^[a-zA-Z_]+:/{exit} f{print}' /data/adb/agh/backup/AdGuardHome.yaml | sed "s/^[[:space:]]*-[[:space:]]*//; s/^'//; s/'\$//; s/^\\"//; s/\\"\$//"
+elif [ -s /data/adb/agh/bin/AdGuardHome.yaml ]; then
+  awk '/^user_rules:/{f=1;next} f&&/^[a-zA-Z_]+:/{exit} f{print}' /data/adb/agh/bin/AdGuardHome.yaml | sed "s/^[[:space:]]*-[[:space:]]*//; s/^'//; s/'\$//; s/^\\"//; s/\\"\$//"
+fi
+''';
+      final result = await Process.run('su', ['-c', cmd]);
+      if (result.exitCode != 0) return [];
+      return result.stdout
+          .toString()
+          .split('\n')
+          .map((e) => e.trimRight())
+          .where((e) => e.trim().isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
 }

@@ -15,6 +15,8 @@ import 'package:adguard_home_manager/widgets/custom_list_tile.dart';
 
 import 'package:adguard_home_manager/functions/desktop_mode.dart';
 import 'package:adguard_home_manager/functions/snackbar.dart';
+import 'package:adguard_home_manager/models/filtering_status.dart';
+import 'package:adguard_home_manager/providers/filtering_provider.dart';
 import 'package:adguard_home_manager/providers/status_provider.dart';
 import 'package:adguard_home_manager/providers/servers_provider.dart';
 import 'package:adguard_home_manager/providers/app_config_provider.dart';
@@ -74,6 +76,16 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
 
   bool _proxyUrlLoading = true;
   bool _proxyUrlSaving = false;
+  bool _diagLoading = true;
+  bool _cleaningAdCache = false;
+  bool _restoringRules = false;
+  Map<String, dynamic> _diag = {
+    'running': false,
+    'pid': '',
+    'dnsPort': '',
+    'natOk': false,
+    'sniOk': false,
+  };
 
   @override
   void initState() {
@@ -81,6 +93,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
         .setSelectedSettingsScreen(screen: null);
     super.initState();
     _loadProxyUrl();
+    _loadDiagnostics();
   }
 
   @override
@@ -97,6 +110,235 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
       _proxyUrlController.text = url;
       _proxyUrlLoading = false;
     });
+  }
+
+  Future<void> _loadDiagnostics() async {
+    final diag = await ModuleConfigService().getModuleDiagnostics();
+    if (!mounted) return;
+    setState(() {
+      _diag = diag;
+      _diagLoading = false;
+    });
+  }
+
+  String _buildDiagSummary() {
+    if (_diagLoading) return '正在检测模块运行状态…';
+    final running = _diag['running'] == true;
+    final pid = (_diag['pid'] ?? '').toString();
+    final dnsPort = (_diag['dnsPort'] ?? '').toString();
+    final natOk = _diag['natOk'] == true;
+    final sniOk = _diag['sniOk'] == true;
+    if (!running) {
+      return '核心未运行（点击查看日志或重载规则）';
+    }
+    return '核心运行中 (PID: $pid${dnsPort.isNotEmpty ? ", DNS端口: $dnsPort" : ""}) · DNS接管: ${natOk ? "正常" : "异常"} · SNI过滤: ${sniOk ? "正常" : "关闭/异常"}';
+  }
+
+  Future<void> _showLogsAndDiagModal() async {
+    final service = ModuleConfigService();
+    String logs = await service.readModuleLogs(maxLines: 150);
+    await _loadDiagnostics();
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return AlertDialog(
+              title: const Text('模块自检与运行日志'),
+              content: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _buildDiagSummary(),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: (_diag['running'] == true && _diag['natOk'] == true)
+                            ? Colors.green
+                            : Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 280,
+                      width: double.maxFinite,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(ctx)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: SingleChildScrollView(
+                        reverse: true,
+                        child: SelectableText(
+                          logs.isEmpty ? '暂无日志记录（/data/adb/agh/agh.log 为空）' : logs,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    final appConfigProvider =
+                        Provider.of<AppConfigProvider>(context, listen: false);
+                    final ok = await service.reloadFirewallRules();
+                    await Future.delayed(const Duration(seconds: 2));
+                    await _loadDiagnostics();
+                    logs = await service.readModuleLogs(maxLines: 150);
+                    setModalState(() {});
+                    if (mounted) {
+                      showSnackbar(
+                        appConfigProvider: appConfigProvider,
+                        label: ok ? '已触发防火墙与守护规则重载' : '重载失败，请检查 Root 权限',
+                        color: ok ? Colors.green : Colors.red,
+                      );
+                    }
+                  },
+                  child: const Text('重载防火墙规则'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    await service.clearModuleLogs();
+                    logs = '';
+                    setModalState(() {});
+                  },
+                  child: const Text('清空日志'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    await _loadDiagnostics();
+                    logs = await service.readModuleLogs(maxLines: 150);
+                    setModalState(() {});
+                  },
+                  child: const Text('刷新'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('关闭'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _handleCleanAdCaches() async {
+    if (_cleaningAdCache) return;
+    final appConfigProvider =
+        Provider.of<AppConfigProvider>(context, listen: false);
+    setState(() => _cleaningAdCache = true);
+    final ok = await ModuleConfigService().cleanAppAdCaches();
+    if (!mounted) return;
+    setState(() => _cleaningAdCache = false);
+    showSnackbar(
+      appConfigProvider: appConfigProvider,
+      label: ok ? '已清理各应用本地开屏广告缓存' : '清理失败，请检查 Root 权限',
+      color: ok ? Colors.green : Colors.red,
+    );
+  }
+
+  Future<void> _handleRestoreFactoryRules() async {
+    if (_restoringRules) return;
+    final mode = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('恢复默认自定义规则'),
+        content: const Text(
+          '请选择恢复方式：\n\n'
+          '• 智能补全（推荐）：保留你自己手动添加的规则，仅补全被误删的模块默认防广告规则。\n'
+          '• 完全重置：清除所有手动改动的规则，完全恢复为模块出厂默认规则。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('reset'),
+            child: const Text('完全重置'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop('merge'),
+            child: const Text('智能补全（推荐）'),
+          ),
+        ],
+      ),
+    );
+    if (mode == null || !mounted) return;
+
+    final appConfigProvider =
+        Provider.of<AppConfigProvider>(context, listen: false);
+    final serversProvider =
+        Provider.of<ServersProvider>(context, listen: false);
+    final filteringProvider =
+        Provider.of<FilteringProvider>(context, listen: false);
+
+    if (serversProvider.apiClient2 == null) {
+      showSnackbar(
+        appConfigProvider: appConfigProvider,
+        label: '未连接到本地 AdGuard Home 服务',
+        color: Colors.red,
+      );
+      return;
+    }
+
+    setState(() => _restoringRules = true);
+    final factoryRules = await ModuleConfigService().readFactoryUserRules();
+    if (factoryRules.isEmpty) {
+      if (!mounted) return;
+      setState(() => _restoringRules = false);
+      showSnackbar(
+        appConfigProvider: appConfigProvider,
+        label: '未能读取到模块默认规则备份',
+        color: Colors.red,
+      );
+      return;
+    }
+
+    List<String> targetRules = List<String>.from(factoryRules);
+    if (mode == 'merge') {
+      final currentRes = await serversProvider.apiClient2!.getFilteringRules();
+      if (currentRes.successful == true) {
+        final existing = (currentRes.content as FilteringStatus).userRules;
+        final factorySet = factoryRules.map((e) => e.trim()).toSet();
+        for (final r in existing) {
+          final trimmed = r.trim();
+          if (trimmed.isNotEmpty && !factorySet.contains(trimmed)) {
+            targetRules.add(r);
+          }
+        }
+      }
+    }
+
+    final postRes = await serversProvider.apiClient2!
+        .postFilteringRules(data: {'rules': targetRules});
+    if (postRes.successful == true) {
+      await filteringProvider.fetchFilters();
+    }
+    if (!mounted) return;
+    setState(() => _restoringRules = false);
+    showSnackbar(
+      appConfigProvider: appConfigProvider,
+      label: postRes.successful == true
+          ? (mode == 'merge' ? '已智能补全模块默认自定义规则' : '已完全重置为模块出厂默认规则')
+          : '恢复规则失败，请稍后重试',
+      color: postRes.successful == true ? Colors.green : Colors.red,
+    );
   }
 
   Future<void> _saveProxyUrl() async {
@@ -174,6 +416,13 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                                 ? 'http://${appConfigProvider.moduleHttpAddress}'
                                 : '未检测到模块',
                           ),
+                          CustomListTile(
+                            icon: Icons.health_and_safety_rounded,
+                            title: '模块运行状态与自检',
+                            subtitle: _buildDiagSummary(),
+                            onTap: _showLogsAndDiagModal,
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                          ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                             child: Column(
@@ -225,6 +474,40 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                                     .onSurfaceVariant,
                               ),
                             ),
+                          ),
+                          CustomListTile(
+                            icon: Icons.cleaning_services_rounded,
+                            title: '清理应用开屏广告缓存',
+                            subtitle: _cleaningAdCache
+                                ? '正在清理各应用本地广告缓存…'
+                                : '立即清理知乎、B站、美团、高德、音乐等应用的本地广告缓存（免重启）',
+                            onTap: _cleaningAdCache ? null : _handleCleanAdCaches,
+                            trailing: _cleaningAdCache
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.chevron_right_rounded),
+                          ),
+                          CustomListTile(
+                            icon: Icons.restore_rounded,
+                            title: '恢复默认自定义规则',
+                            subtitle: _restoringRules
+                                ? '正在恢复默认自定义规则…'
+                                : '补全误删的模块默认防广告规则，或重置为出厂规则',
+                            onTap: _restoringRules
+                                ? null
+                                : _handleRestoreFactoryRules,
+                            trailing: _restoringRules
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.chevron_right_rounded),
                           ),
                           CustomListTile(
                             icon: Icons.toggle_on_rounded,
@@ -303,7 +586,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                               label: AppLocalizations.of(context)!.aboutApp),
                           CustomListTile(
                             title: AppLocalizations.of(context)!.appVersion,
-                            subtitle: '${appConfigProvider.getAppInfo!.version} (wu修改版)',
+                            subtitle: appConfigProvider.getAppInfo!.version,
                           ),
                           const SizedBox(height: 16)
                         ],

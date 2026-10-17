@@ -145,7 +145,7 @@ class Main extends StatelessWidget {
           darkSeed: darkSeed,
           brightness: brightness,
           builder: (context, lightColors, darkColors) => MaterialApp(
-            title: 'AdGuard Home Manager (wu修改版)',
+            title: 'AdGuard Home Manager',
             theme: miuixThemeData(lightColors, Brightness.light),
             darkTheme: miuixThemeData(darkColors, Brightness.dark),
             themeMode: themeMode,

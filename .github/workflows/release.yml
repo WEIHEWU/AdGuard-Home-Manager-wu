@@ -21,31 +21,22 @@ jobs:
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.24.5
-          name: "AdGuard Home Manager (wu修改版) v2.24.5"
+          tag_name: v2.24.6
+          name: "AdGuard Home Manager v2.24.6"
           body: |
-            ### AdGuard Home Manager (wu修改版) `v2.24.5`
+            ### AdGuard Home Manager `v2.24.6`
 
-            专为 **[AdGuard Home For Android (wu修改版)](https://github.com/WEIHEWU/AdGuard-Home-For-Android-wu)** 定制的配套管理器客户端。
+            专为 **[AdGuard Home For Android](https://github.com/WEIHEWU/AdGuard-Home-For-Android-wu)** 定制的配套管理器客户端。
 
-            #### 🆕 v2.24.5 更新内容
-            - **点击「拦截 / 放行」域名自动添加 `$important`**：
-              - 在查询日志列表及日志详情页点击 **「拦截域名」** 时，现已与「放行域名」保持一致，自动生成高优先级规则 `||domain^$important`（此前仅生成普通 `||domain^`，容易被白名单订阅如 `allow.txt` 覆盖导致手动拦截失效）；
-              - 手动添加自定义规则弹窗中的 **「添加 `$important`」** 开关默认设为开启。
-            - **修复切换拦截/放行时误删同根子域名规则的隐患**：
-              - 修复原版在切换域名状态时使用子串包含匹配（`!d.contains(domain)`）导致操作主域名（如 `google.com`）时会把所有相关子域名规则（如 `play.google.com`、`accounts.google.com`）及包含该域名的注释一并误删的问题，改为精确匹配目标域名规则；
-              - 在客户端专属放行/拦截及手动添加规则时自动去重并清理冲突的反向规则。
+            #### 🆕 v2.24.6 更新内容
+            - **新增三大模块运维工具（设置 -> 模块设置）**：
+              - **📋 模块运行状态与自检**：实时显示 `AdGuardHome` 核心 PID、随机端口、`ADGUARD` (DNS 劫持链) 与 `AGH_SNI` (SNI 嗅探链) 挂载状态，支持直接查看最近 150 行 `agh.log`、一键清空日志、一键重载防火墙规则；
+              - **🧹 清理应用开屏广告缓存**：无需重启手机，一键立即清理知乎、B站、美团、高德、音乐等几十款应用的本地开屏广告缓存；
+              - **🔄 恢复默认自定义规则**：支持「智能补全（保留自建规则，仅补全缺失的模块默认规则）」与「完全重置为模块出厂规则」双模式。
+            - **界面精简**：全面移除所有多余自定义后缀字样，恢复简洁原生的应用名称与版本号展示。
 
-            #### 🔄 v2.24.4 跟进上游 (`JGeek00/adguard-home-manager` v2.22.1 ~ v2.22.2) 更新
-            - **修复新版 AdGuard Home (`v0.108.0-b.84+`) 加密设置报错**：适配 AdGuard Home Schema v34 移除 `/tls/status` 中 `allow_unencrypted_doh` 字段的变更，修复打开加密设置时的解析异常；
-            - **修复 Android 16/17+ 本地/局域网连接拦截**：新增 `ACCESS_LOCAL_NETWORK` 本地网络权限声明与自动检测请求，确保在新版 Android 本地网络保护机制下正常连接本地 `127.0.0.1` 或局域网服务端；
-            - **优化加密证书提示体验**：当证书有效而仅返回建议性警告时，改为弹出 6 秒底部 Snackbar 提示，不再常驻顶部红色错误卡片；
-            - **新增应用内语言切换 & Android 13+ 分应用语言同步**：在【设置 -> 应用设置 -> 语言】中支持手动切换「跟随系统 / 简体中文 / English」，并与系统设置分应用语言保持同步。
-
-            #### ✨ wu修改版专属特性
-            - **UI 组件可见性修复**：修复上游 Miuix 主题下单选框 (`CustomRadioListTile`) 选中/未选中圆圈不可见的问题；
-            - **`$important` 最高优先级规则**：在查询日志中点击一键放行或拦截域名时，自动追加 `$important` 最高优先级修饰符，确保用户手动规则 100% 覆盖订阅列表；
-            - **`PROXY_URL` 代理订阅即时联动**：在【设置 -> 模块设置】保存或清空 `PROXY_URL` 订阅链接后，自动触发后台 `ProxyConfig.sh --once` 立即同步至 Box/Clash 配置并生效，无需重启手机；
-            - **模块自动探索与随机端口同步**：启动时通过 Root 自动读取 `/data/adb/agh/bin/AdGuardHome.yaml` 最新监听地址与凭据，完美适配开机/软重启随机端口机制。
+            #### 🔄 近期重要更新 (`v2.24.4` ~ `v2.24.5`)
+            - **点击「拦截 / 放行」域名自动添加 `$important`**：查询日志中点击拦截或放行时统一生成高优先级 `$important` 规则，并修复切换状态时子串匹配误删同根子域名规则的隐患；
+            - **同步上游 (`JGeek00/adguard-home-manager` v2.22.1 ~ v2.22.2)**：修复新版 AdGuard Home (`v0.108.0-b.84+`) 加密设置报错、新增 Android 16/17+ `ACCESS_LOCAL_NETWORK` 本地网络权限适配、新增应用内语言切换器。
           files: |
-            releases/AdGuardHomeManager_wu修改版.apk
+            releases/AdGuardHomeManager.apk

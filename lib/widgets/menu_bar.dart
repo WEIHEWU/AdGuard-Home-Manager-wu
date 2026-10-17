@@ -53,7 +53,7 @@ class CustomMenuBar extends StatelessWidget {
     return PlatformMenuBar(
       menus: [
         PlatformMenu(
-          label: 'AdGuard Home Manager (wu修改版)',
+          label: 'AdGuard Home Manager',
           menus: <PlatformMenuItem>[
             if (
               PlatformProvidedMenuItem.hasMenu(PlatformProvidedMenuItemType.about)
