@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:adguard_home_manager/l10n/app_localizations.dart';
 
@@ -211,6 +212,38 @@ class _CustomizationWidgetState extends State<CustomizationWidget> {
                 ),
               ),
             ),
+            SectionLabel(
+              label: '首页数据概览展示样式',
+              padding: const EdgeInsets.only(top: 24, left: 16, right: 16, bottom: 10),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(
+                    value: 0,
+                    icon: Icon(Icons.show_chart_rounded),
+                    label: Text('折线图'),
+                  ),
+                  ButtonSegment(
+                    value: 1,
+                    icon: Icon(Icons.bar_chart_rounded),
+                    label: Text('柱状图'),
+                  ),
+                  ButtonSegment(
+                    value: 2,
+                    icon: Icon(Icons.dashboard_rounded),
+                    label: Text('数字卡片'),
+                  ),
+                ],
+                selected: {appConfigProvider.overviewStyle},
+                onSelectionChanged: (val) {
+                  HapticFeedback.lightImpact();
+                  appConfigProvider.setOverviewStyle(val.first);
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

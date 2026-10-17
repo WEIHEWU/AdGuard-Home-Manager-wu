@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:adguard_home_manager/l10n/app_localizations.dart';
 
+import 'package:flutter/services.dart';
 import 'package:adguard_home_manager/screens/home/appbar.dart';
 import 'package:adguard_home_manager/screens/home/chart.dart';
 import 'package:adguard_home_manager/screens/home/combined_chart.dart';
+import 'package:adguard_home_manager/screens/home/bar_chart.dart';
+import 'package:adguard_home_manager/screens/home/summary_cards.dart';
 import 'package:adguard_home_manager/screens/home/protection_switch.dart';
 import 'package:adguard_home_manager/screens/home/top_items/top_items_lists.dart';
 
@@ -94,6 +97,8 @@ class _HomeState extends State<Home> {
                   await statusProvider.getServerStatus();
                 },
                 child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics()),
                   slivers: [
                     SliverOverlapInjector(
                       handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
@@ -125,87 +130,151 @@ class _HomeState extends State<Home> {
                       SliverList.list(
                         children: [
                           const ProtectionSwitch(),
-                          if (appConfigProvider.combinedChartHome == false)
-                            RepaintBoundary(
-                              child: Wrap(
-                                children: [
-                                  FractionallySizedBox(
-                                    widthFactor: width > 700 ? 0.5 : 1,
-                                    child: HomeChart(
-                                      data: statusProvider
-                                          .serverStatus!.stats.dnsQueries,
-                                      label: AppLocalizations.of(context)!
-                                          .dnsQueries,
-                                      primaryValue: intFormat(
-                                        statusProvider
-                                            .serverStatus!.stats.numDnsQueries,
-                                        Localizations.localeOf(context)
-                                            .toString(),
-                                      ),
-                                      secondaryValue:
-                                          "${doubleFormat(statusProvider.serverStatus!.stats.avgProcessingTime * 1000, Localizations.localeOf(context).toString())} ms",
-                                      color: Colors.blue,
-                                      hoursInterval: statusProvider
-                                                  .serverStatus!
-                                                  .stats
-                                                  .timeUnits ==
-                                              "days"
-                                          ? 24
-                                          : 1,
-                                      onTapTitle: () {
-                                        logsProvider.setSelectedResultStatus(
-                                          value: "all",
-                                          refetch: true,
-                                        );
-                                        logsProvider.filterLogs();
-                                        appConfigProvider.setSelectedScreen(1);
-                                      },
-                                      isDesktop: width > 700,
-                                    ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '数据概览',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                   ),
-                                  FractionallySizedBox(
-                                    widthFactor: width > 700 ? 0.5 : 1,
-                                    child: HomeChart(
-                                      data: statusProvider
-                                          .serverStatus!.stats.blockedFiltering,
-                                      label: AppLocalizations.of(context)!
-                                          .blockedFilters,
-                                      primaryValue: intFormat(
-                                        statusProvider.serverStatus!.stats
-                                            .numBlockedFiltering,
-                                        Localizations.localeOf(context)
-                                            .toString(),
-                                      ),
-                                      secondaryValue:
-                                          "${statusProvider.serverStatus!.stats.numDnsQueries > 0 ? doubleFormat((statusProvider.serverStatus!.stats.numBlockedFiltering / statusProvider.serverStatus!.stats.numDnsQueries) * 100, Localizations.localeOf(context).toString()) : 0}%",
-                                      color: Colors.red,
-                                      hoursInterval: statusProvider
-                                                  .serverStatus!
-                                                  .stats
-                                                  .timeUnits ==
-                                              "days"
-                                          ? 24
-                                          : 1,
-                                      onTapTitle: () {
-                                        logsProvider.setSelectedResultStatus(
-                                          value: "blocked",
-                                          refetch: true,
-                                        );
-                                        appConfigProvider.setSelectedScreen(1);
-                                      },
-                                      isDesktop: width > 700,
+                                ),
+                                SegmentedButton<int>(
+                                  showSelectedIcon: false,
+                                  segments: const [
+                                    ButtonSegment(
+                                      value: 0,
+                                      icon: Icon(Icons.show_chart_rounded,
+                                          size: 15),
+                                      label: Text('折线',
+                                          style: TextStyle(fontSize: 12)),
                                     ),
+                                    ButtonSegment(
+                                      value: 1,
+                                      icon: Icon(Icons.bar_chart_rounded,
+                                          size: 15),
+                                      label: Text('柱状',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                    ButtonSegment(
+                                      value: 2,
+                                      icon: Icon(Icons.dashboard_rounded,
+                                          size: 15),
+                                      label: Text('卡片',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ],
+                                  selected: {appConfigProvider.overviewStyle},
+                                  onSelectionChanged: (val) {
+                                    HapticFeedback.lightImpact();
+                                    appConfigProvider.setOverviewStyle(val.first);
+                                  },
+                                  style: const ButtonStyle(
+                                    visualDensity: VisualDensity.compact,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          if (appConfigProvider.combinedChartHome == true)
+                          ),
+                          if (appConfigProvider.overviewStyle == 0) ...[
+                            if (appConfigProvider.combinedChartHome == false)
+                              RepaintBoundary(
+                                child: Wrap(
+                                  children: [
+                                    FractionallySizedBox(
+                                      widthFactor: width > 700 ? 0.5 : 1,
+                                      child: HomeChart(
+                                        data: statusProvider
+                                            .serverStatus!.stats.dnsQueries,
+                                        label: AppLocalizations.of(context)!
+                                            .dnsQueries,
+                                        primaryValue: intFormat(
+                                          statusProvider
+                                              .serverStatus!.stats.numDnsQueries,
+                                          Localizations.localeOf(context)
+                                              .toString(),
+                                        ),
+                                        secondaryValue:
+                                            "${doubleFormat(statusProvider.serverStatus!.stats.avgProcessingTime * 1000, Localizations.localeOf(context).toString())} ms",
+                                        color: Colors.blue,
+                                        hoursInterval: statusProvider
+                                                    .serverStatus!
+                                                    .stats
+                                                    .timeUnits ==
+                                                "days"
+                                            ? 24
+                                            : 1,
+                                        onTapTitle: () {
+                                          logsProvider.setSelectedResultStatus(
+                                            value: "all",
+                                            refetch: true,
+                                          );
+                                          logsProvider.filterLogs();
+                                          appConfigProvider.setSelectedScreen(1);
+                                        },
+                                        isDesktop: width > 700,
+                                      ),
+                                    ),
+                                    FractionallySizedBox(
+                                      widthFactor: width > 700 ? 0.5 : 1,
+                                      child: HomeChart(
+                                        data: statusProvider
+                                            .serverStatus!.stats.blockedFiltering,
+                                        label: AppLocalizations.of(context)!
+                                            .blockedFilters,
+                                        primaryValue: intFormat(
+                                          statusProvider.serverStatus!.stats
+                                              .numBlockedFiltering,
+                                          Localizations.localeOf(context)
+                                              .toString(),
+                                        ),
+                                        secondaryValue:
+                                            "${statusProvider.serverStatus!.stats.numDnsQueries > 0 ? doubleFormat((statusProvider.serverStatus!.stats.numBlockedFiltering / statusProvider.serverStatus!.stats.numDnsQueries) * 100, Localizations.localeOf(context).toString()) : 0}%",
+                                        color: Colors.red,
+                                        hoursInterval: statusProvider
+                                                    .serverStatus!
+                                                    .stats
+                                                    .timeUnits ==
+                                                "days"
+                                            ? 24
+                                            : 1,
+                                        onTapTitle: () {
+                                          logsProvider.setSelectedResultStatus(
+                                            value: "blocked",
+                                            refetch: true,
+                                          );
+                                          appConfigProvider.setSelectedScreen(1);
+                                        },
+                                        isDesktop: width > 700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (appConfigProvider.combinedChartHome == true)
+                              const RepaintBoundary(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: CombinedHomeChart(),
+                                ),
+                              ),
+                          ] else if (appConfigProvider.overviewStyle == 1) ...[
                             const RepaintBoundary(
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: CombinedHomeChart(),
-                              ),
+                              child: HomeBarChart(),
                             ),
+                          ] else ...[
+                            const RepaintBoundary(
+                              child: HomeSummaryCards(),
+                            ),
+                          ],
                           TopItemsLists(
                               order: appConfigProvider.homeTopItemsOrder),
                           const SizedBox(height: 16),

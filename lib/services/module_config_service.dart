@@ -269,4 +269,105 @@ fi
       return [];
     }
   }
+
+  Future<List<String>> readAppAllowlist() async {
+    if (!_isAndroid) return [];
+    try {
+      final result = await Process.run(
+        'su',
+        ['-c', '[ -f /data/adb/agh/app-allow.txt ] && cat /data/adb/agh/app-allow.txt || true'],
+      );
+      if (result.exitCode != 0) return [];
+      return result.stdout
+          .toString()
+          .split('\n')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty && !e.startsWith('#'))
+          .toSet()
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<bool> saveAppAllowlist(List<String> packages) async {
+    if (!_isAndroid) return false;
+    try {
+      final content = packages.map((e) => e.trim()).where((e) => e.isNotEmpty).join('\n');
+      final escaped = content.replaceAll("'", "'\\''");
+      final cmd = '''
+mkdir -p /data/adb/agh
+printf '%s\n' '$escaped' > /data/adb/agh/app-allow.txt
+chmod 644 /data/adb/agh/app-allow.txt
+''';
+      final result = await Process.run('su', ['-c', cmd]);
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, String>>> getInstalledApps() async {
+    if (!_isAndroid) return [];
+    try {
+      final result = await Process.run('su', ['-c', 'pm list packages -3 2>/dev/null || pm list packages 2>/dev/null']);
+      if (result.exitCode != 0) return [];
+      final lines = result.stdout.toString().split('\n');
+      final List<Map<String, String>> apps = [];
+      for (final raw in lines) {
+        var pkg = raw.trim();
+        if (pkg.startsWith('package:')) {
+          pkg = pkg.substring('package:'.length).trim();
+        }
+        if (pkg.isNotEmpty) {
+          apps.add({
+            'package': pkg,
+            'name': resolveKnownAppName(pkg),
+          });
+        }
+      }
+      apps.sort((a, b) => a['name']!.compareTo(b['name']!));
+      return apps;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static String resolveKnownAppName(String pkg) {
+    const known = {
+      'com.tencent.mm': '微信',
+      'com.eg.android.AlipayGphone': '支付宝',
+      'com.taobao.taobao': '手机淘宝',
+      'com.jingdong.app.mall': '京东',
+      'tv.danmaku.bili': '哔哩哔哩',
+      'com.autonavi.minimap': '高德地图',
+      'com.baidu.BaiduMap': '百度地图',
+      'com.sankuai.meituan': '美团',
+      'com.zhihu.android': '知乎',
+      'com.xingin.xhs': '小红书',
+      'com.ss.android.ugc.aweme': '抖音',
+      'com.kuaishou.nebula': '快手',
+      'com.netease.cloudmusic': '网易云音乐',
+      'com.tencent.qqmusic': 'QQ音乐',
+      'com.tencent.mobileqq': 'QQ',
+      'com.sina.weibo': '微博',
+      'com.alibaba.android.rimet': '钉钉',
+      'com.tencent.wework': '企业微信',
+      'com.unionpay': '云闪付',
+      'com.tmall.wireless': '手机天猫',
+      'com.xunmeng.pinduoduo': '拼多多',
+      'com.dragon.read': '番茄免费小说',
+      'com.coolapk.market': '酷安',
+      'com.android.vending': 'Google Play 商店',
+      'com.google.android.gms': 'Google Play 服务',
+      'com.chinamworld.main': '中国建设银行',
+      'com.icbc': '中国工商银行',
+      'com.bankofchina.mpassport': '中国银行',
+      'com.android.bankabc': '中国农业银行',
+      'cmb.pb': '招商银行',
+      'com.traffic.alipay.wz': '交管12123',
+    };
+    return known[pkg] ?? pkg;
+  }
 }
+

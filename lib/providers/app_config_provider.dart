@@ -52,6 +52,8 @@ class AppConfigProvider with ChangeNotifier {
 
   bool _combinedChartHome = false;
 
+  int _overviewStyle = 0; // 0: Line, 1: Bar, 2: Cards
+
   String _moduleHttpAddress = '';
 
   String? _doNotRememberVersion;
@@ -155,6 +157,10 @@ class AppConfigProvider with ChangeNotifier {
 
   bool get combinedChartHome {
     return _combinedChartHome;
+  }
+
+  int get overviewStyle {
+    return _overviewStyle;
   }
 
   String get moduleHttpAddress {
@@ -346,6 +352,17 @@ class AppConfigProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> setOverviewStyle(int value) async {
+    try {
+      await sharedPreferencesInstance.setInt('overviewStyle', value);
+      _overviewStyle = value;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   void setModuleHttpAddress(String value) {
     _moduleHttpAddress = value;
     sharedPreferencesInstance.setString('moduleHttpAddress', value);
@@ -408,6 +425,8 @@ class AppConfigProvider with ChangeNotifier {
     _showIpLogs = sharedPreferencesInstance.getBool('showIpLogs') ?? false;
     _combinedChartHome =
         sharedPreferencesInstance.getBool('combinedChart') ?? false;
+    _overviewStyle =
+        sharedPreferencesInstance.getInt('overviewStyle') ?? 0;
     _hideServerAddress =
         sharedPreferencesInstance.getBool('hideServerAddress') ?? false;
     _moduleHttpAddress =

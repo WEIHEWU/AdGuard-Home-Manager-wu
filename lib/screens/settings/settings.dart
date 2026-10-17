@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:adguard_home_manager/l10n/app_localizations.dart';
@@ -21,6 +22,7 @@ import 'package:adguard_home_manager/providers/status_provider.dart';
 import 'package:adguard_home_manager/providers/servers_provider.dart';
 import 'package:adguard_home_manager/providers/app_config_provider.dart';
 import 'package:adguard_home_manager/services/module_config_service.dart';
+import 'package:adguard_home_manager/screens/settings/module/app_allowlist_modal.dart';
 
 final settingsNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -142,10 +144,13 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
 
     showDialog(
       context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            return AlertDialog(
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: StatefulBuilder(
+            builder: (ctx, setModalState) {
+              return AlertDialog(
               title: const Text('模块自检与运行日志'),
               content: SizedBox(
                 width: 520,
@@ -230,10 +235,21 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                   child: const Text('关闭'),
                 ),
               ],
-            );
-          },
+              );
+            },
+          ),
         );
       },
+    );
+  }
+
+  void _handleOpenAppAllowlist() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (ctx) => const AppAllowlistModal(),
     );
   }
 
@@ -256,27 +272,31 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     if (_restoringRules) return;
     final mode = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('恢复默认自定义规则'),
-        content: const Text(
-          '请选择恢复方式：\n\n'
-          '• 智能补全（推荐）：保留你自己手动添加的规则，仅补全被误删的模块默认防广告规则。\n'
-          '• 完全重置：清除所有手动改动的规则，完全恢复为模块出厂默认规则。',
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: AlertDialog(
+          title: const Text('恢复默认自定义规则'),
+          content: const Text(
+            '请选择恢复方式：\n\n'
+            '• 智能补全（推荐）：保留你自己手动添加的规则，仅补全被误删的模块默认防广告规则。\n'
+            '• 完全重置：清除所有手动改动的规则，完全恢复为模块出厂默认规则。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop('reset'),
+              child: const Text('完全重置'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop('merge'),
+              child: const Text('智能补全（推荐）'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop('reset'),
-            child: const Text('完全重置'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop('merge'),
-            child: const Text('智能补全（推荐）'),
-          ),
-        ],
       ),
     );
     if (mode == null || !mounted) return;
@@ -400,6 +420,8 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
           bottom: false,
           child: Builder(
               builder: (context) => CustomScrollView(
+                    physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics()),
                     slivers: [
                       SliverOverlapInjector(
                         handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
@@ -508,6 +530,13 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                                         strokeWidth: 2),
                                   )
                                 : const Icon(Icons.chevron_right_rounded),
+                          ),
+                          CustomListTile(
+                            icon: Icons.checklist_rounded,
+                            title: '应用放行名单',
+                            subtitle: '名单内应用在前台时自动暂停过滤，离开后自动恢复（解决网银/游戏误杀）',
+                            onTap: _handleOpenAppAllowlist,
+                            trailing: const Icon(Icons.chevron_right_rounded),
                           ),
                           CustomListTile(
                             icon: Icons.toggle_on_rounded,

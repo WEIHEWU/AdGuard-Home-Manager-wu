@@ -21,22 +21,21 @@ jobs:
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.24.6
-          name: "AdGuard Home Manager v2.24.6"
+          tag_name: v2.24.7
+          name: "AdGuard Home Manager v2.24.7"
           body: |
-            ### AdGuard Home Manager `v2.24.6`
+            ### AdGuard Home Manager `v2.24.7`
 
             专为 **[AdGuard Home For Android](https://github.com/WEIHEWU/AdGuard-Home-For-Android-wu)** 定制的配套管理器客户端。
 
-            #### 🆕 v2.24.6 更新内容
-            - **新增三大模块运维工具（设置 -> 模块设置）**：
-              - **📋 模块运行状态与自检**：实时显示 `AdGuardHome` 核心 PID、随机端口、`ADGUARD` (DNS 劫持链) 与 `AGH_SNI` (SNI 嗅探链) 挂载状态，支持直接查看最近 150 行 `agh.log`、一键清空日志、一键重载防火墙规则；
-              - **🧹 清理应用开屏广告缓存**：无需重启手机，一键立即清理知乎、B站、美团、高德、音乐等几十款应用的本地开屏广告缓存；
-              - **🔄 恢复默认自定义规则**：支持「智能补全（保留自建规则，仅补全缺失的模块默认规则）」与「完全重置为模块出厂规则」双模式。
-            - **界面精简**：全面移除所有多余自定义后缀字样，恢复简洁原生的应用名称与版本号展示。
-
-            #### 🔄 近期重要更新 (`v2.24.4` ~ `v2.24.5`)
-            - **点击「拦截 / 放行」域名自动添加 `$important`**：查询日志中点击拦截或放行时统一生成高优先级 `$important` 规则，并修复切换状态时子串匹配误删同根子域名规则的隐患；
-            - **同步上游 (`JGeek00/adguard-home-manager` v2.22.1 ~ v2.22.2)**：修复新版 AdGuard Home (`v0.108.0-b.84+`) 加密设置报错、新增 Android 16/17+ `ACCESS_LOCAL_NETWORK` 本地网络权限适配、新增应用内语言切换器。
+            #### 🆕 v2.24.7 更新内容
+            - **应用放行名单（App Allowlist）管理**：
+              - 设置 -> 模块专属设置中新增「应用放行名单」入口，支持一键勾选已安装应用、包名搜索与手动输入自定义包名；
+              - 针对网银、外服游戏、交管等特殊应用，在前台运行时自动暂停过滤，离开后秒级自动恢复。
+            - **首页数据概览样式切换（Overview Style）**：
+              - 首页全新支持 **折线图 (Line)**、**柱状图 (Bar)**、**数字卡片 (Cards)** 3 种概览模式自由切换，满足图表趋势或紧凑数字不同偏好。
+            - **弹窗应用遮罩与动效重构**：
+              - 模块弹窗与应用放行面板全面升级 **8px 高斯模糊毛玻璃背景遮罩 (`BackdropFilter`)**，消除窗口层级撕裂；
+              - 引入全局弹性阻尼回弹动效 (`BouncingScrollPhysics`) 与卡片按压触感反馈 (`HapticFeedback`)。
           files: |
             releases/AdGuardHomeManager.apk
