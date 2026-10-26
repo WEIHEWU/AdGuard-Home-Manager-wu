@@ -78,9 +78,6 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
 
   bool _proxyUrlLoading = true;
   bool _proxyUrlSaving = false;
-  bool _vpnTakeover = false;
-  bool _vpnTakeoverLoading = true;
-  bool _vpnTakeoverSaving = false;
   bool _diagLoading = true;
   bool _cleaningAdCache = false;
   bool _restoringRules = false;
@@ -90,6 +87,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     'dnsPort': '',
     'natOk': false,
     'sniOk': false,
+    'vpnMode': 'off',
   };
 
   @override
@@ -98,7 +96,6 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
         .setSelectedSettingsScreen(screen: null);
     super.initState();
     _loadProxyUrl();
-    _loadVpnTakeover();
     _loadDiagnostics();
   }
 
@@ -118,41 +115,6 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     });
   }
 
-  Future<void> _loadVpnTakeover() async {
-    final enabled = await ModuleConfigService().readVpnDnsTakeover();
-    if (!mounted) return;
-    setState(() {
-      _vpnTakeover = enabled;
-      _vpnTakeoverLoading = false;
-    });
-  }
-
-  Future<void> _toggleVpnTakeover(bool val) async {
-    if (_vpnTakeoverSaving) return;
-    final appConfigProvider =
-        Provider.of<AppConfigProvider>(context, listen: false);
-    final prev = _vpnTakeover;
-    setState(() {
-      _vpnTakeover = val;
-      _vpnTakeoverSaving = true;
-    });
-    final ok = await ModuleConfigService().saveVpnDnsTakeover(val);
-    if (!mounted) return;
-    setState(() {
-      if (!ok) _vpnTakeover = prev;
-      _vpnTakeoverSaving = false;
-    });
-    showSnackbar(
-      appConfigProvider: appConfigProvider,
-      label: ok
-          ? (val
-              ? '已开启 VPN 强制接管 DNS（适合海外使用一键回国 VPN）'
-              : '已关闭 VPN 强制接管 DNS（适合国内使用翻墙出国 VPN）')
-          : '切换失败，请检查 Root 权限',
-      color: ok ? Colors.green : Colors.red,
-    );
-  }
-
   Future<void> _loadDiagnostics() async {
     final diag = await ModuleConfigService().getModuleDiagnostics();
     if (!mounted) return;
@@ -169,10 +131,17 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     final dnsPort = (_diag['dnsPort'] ?? '').toString();
     final natOk = _diag['natOk'] == true;
     final sniOk = _diag['sniOk'] == true;
+    final vpnMode = (_diag['vpnMode'] ?? 'off').toString();
     if (!running) {
       return '核心未运行（点击查看日志或重载规则）';
     }
-    return '核心运行中 (PID: $pid${dnsPort.isNotEmpty ? ", DNS端口: $dnsPort" : ""}) · DNS接管: ${natOk ? "正常" : "异常"} · SNI过滤: ${sniOk ? "正常" : "关闭/异常"}';
+    var vpnText = '';
+    if (vpnMode == 'takeover') {
+      vpnText = ' · VPN: 回国去广告';
+    } else if (vpnMode == 'bypass') {
+      vpnText = ' · VPN: 翻墙防污染';
+    }
+    return '核心运行中 (PID: $pid${dnsPort.isNotEmpty ? ", DNS端口: $dnsPort" : ""}) · DNS接管: ${natOk ? "正常" : "异常"} · SNI过滤: ${sniOk ? "正常" : "关闭/异常"}$vpnText';
   }
 
   Future<void> _showLogsAndDiagModal() async {
@@ -483,32 +452,6 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                             subtitle: _buildDiagSummary(),
                             onTap: _showLogsAndDiagModal,
                             trailing: const Icon(Icons.chevron_right_rounded),
-                          ),
-                          CustomListTile(
-                            icon: Icons.vpn_lock_rounded,
-                            title: 'VPN 下强制接管 DNS（回国加速模式）',
-                            subtitle: _vpnTakeoverLoading
-                                ? '正在读取当前 VPN 接管策略…'
-                                : (_vpnTakeover
-                                    ? '已开启：海外使用“一键回国 VPN”时兼顾解锁与广告拦截'
-                                    : '已关闭：国内使用“翻墙出国 VPN”时放行 Fake-IP 防 DNS 污染（靠 SNI 拦截广告）'),
-                            onTap: (_vpnTakeoverLoading || _vpnTakeoverSaving)
-                                ? null
-                                : () => _toggleVpnTakeover(!_vpnTakeover),
-                            trailing: _vpnTakeoverSaving
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2),
-                                  )
-                                : Switch(
-                                    value: _vpnTakeover,
-                                    onChanged: (_vpnTakeoverLoading ||
-                                            _vpnTakeoverSaving)
-                                        ? null
-                                        : _toggleVpnTakeover,
-                                  ),
                           ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),

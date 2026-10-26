@@ -29,11 +29,9 @@ jobs:
             专为 **[AdGuard Home For Android](https://github.com/WEIHEWU/AdGuard-Home-For-Android-wu)** 定制的配套管理器客户端。
 
             #### 🆕 v2.24.8 更新内容
-            - **新增「VPN 下强制接管 DNS（回国加速模式）」可视化开关**：
-              - 设置 -> 模块设置中新增一键切换开关，免重启即时热重载 `iptables` 规则并刷新系统 DNS 缓存；
-              - **开启 (`VPN_DNS_TAKEOVER=1`)**：适合海外使用“一键回国 VPN”，配合国内音视频 DoH 分流，同时兼顾回国解锁与全网去广告；
-              - **关闭 (`VPN_DNS_TAKEOVER=0`)**：适合国内使用“翻墙出国 VPN”（Clash / Sing-box Fake-IP 模式），自动放行 `tun+/utun+` DNS 防止直连污染，同时由底层 `AGH_SNI` (443 端口 TLS 握手嗅探) 继续拦截广告；
-              - 完美解决跨国出差/回国探亲时的模式切换需求，无后台网络轮询、0 额外耗电、0 死循环风险。
+            - **VPN 智能无感协同状态自检展示**：
+              - 配合模块底层零耗电本地自动识别引擎（`VPN_DNS_TAKEOVER=auto`），彻底移除繁琐的手动模式开关；
+              - 在「设置 -> 模块运行状态与自检」中自动实时显示当前识别到的 VPN 协同状态（`VPN: 回国去广告` / `VPN: 翻墙防污染`）。
             - **包含 v2.24.7 全部特性**：应用放行名单管理、首页 3 种数据概览样式切换、8px 毛玻璃遮罩与弹性动效。
           files: |
             releases/AdGuardHomeManager.apk

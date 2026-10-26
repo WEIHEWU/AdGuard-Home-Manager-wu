@@ -126,68 +126,6 @@ class ModuleConfigService {
     }
   }
 
-  Future<bool> readVpnDnsTakeover() async {
-    if (!_isAndroid) return false;
-    try {
-      final result = await Process.run('su', ['-c', 'cat $moduleConfigPath']);
-      if (result.exitCode != 0) return false;
-      final content = result.stdout.toString();
-      for (final rawLine in content.split('\n')) {
-        final line = rawLine.trim();
-        if (line.startsWith('VPN_DNS_TAKEOVER=')) {
-          final val = line
-              .substring('VPN_DNS_TAKEOVER='.length)
-              .replaceAll('"', '')
-              .replaceAll("'", '')
-              .trim();
-          return val == '1';
-        }
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> saveVpnDnsTakeover(bool enabled) async {
-    if (!_isAndroid) return false;
-    try {
-      final readResult =
-          await Process.run('su', ['-c', 'cat $moduleConfigPath']);
-      if (readResult.exitCode != 0) return false;
-
-      final targetVal = enabled ? '1' : '0';
-      final lines = readResult.stdout.toString().split('\n');
-      final updatedLines = <String>[];
-      var replaced = false;
-
-      for (final line in lines) {
-        if (line.trimLeft().startsWith('VPN_DNS_TAKEOVER=')) {
-          replaced = true;
-          updatedLines.add('VPN_DNS_TAKEOVER=$targetVal');
-          continue;
-        }
-        updatedLines.add(line);
-      }
-      if (!replaced) {
-        updatedLines.add('VPN_DNS_TAKEOVER=$targetVal');
-      }
-      final content = updatedLines.join('\n');
-
-      final writer =
-          await Process.start('su', ['-c', 'cat > $moduleConfigPath']);
-      writer.stdin.add(utf8.encode(content));
-      await writer.stdin.close();
-      final writeResult = await writer.exitCode;
-      if (writeResult == 0) {
-        await reloadFirewallRules();
-      }
-      return writeResult == 0;
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<Map<String, dynamic>> getModuleDiagnostics() async {
     if (!_isAndroid) {
       return {
@@ -196,6 +134,7 @@ class ModuleConfigService {
         'dnsPort': '',
         'natOk': false,
         'sniOk': false,
+        'vpnMode': 'off',
       };
     }
     try {
@@ -204,10 +143,12 @@ pid=\$(pidof AdGuardHome 2>/dev/null | awk '{print \$1}')
 dns_port=\$(sed -n 's/^redir_port=//p' /data/adb/agh/scripts/config.prop 2>/dev/null | head -n 1)
 iptables -w 2 -t nat -C OUTPUT -j ADGUARD >/dev/null 2>&1 && nat_ok=1 || nat_ok=0
 iptables -w 2 -t filter -C OUTPUT -j AGH_SNI >/dev/null 2>&1 && sni_ok=1 || sni_ok=0
+vpn_mode=\$(cat /data/adb/agh/vpn_mode_status 2>/dev/null | head -n 1)
 echo "PID=\$pid"
 echo "PORT=\$dns_port"
 echo "NAT=\$nat_ok"
 echo "SNI=\$sni_ok"
+echo "VPN=\$vpn_mode"
 ''';
       final result = await Process.run('su', ['-c', cmd]);
       if (result.exitCode != 0) {
@@ -217,18 +158,21 @@ echo "SNI=\$sni_ok"
           'dnsPort': '',
           'natOk': false,
           'sniOk': false,
+          'vpnMode': 'off',
         };
       }
       String pid = '';
       String dnsPort = '';
       bool natOk = false;
       bool sniOk = false;
+      String vpnMode = 'off';
       for (final line in result.stdout.toString().split('\n')) {
         final t = line.trim();
         if (t.startsWith('PID=')) pid = t.substring(4).trim();
         if (t.startsWith('PORT=')) dnsPort = t.substring(5).trim();
         if (t.startsWith('NAT=')) natOk = t.substring(4).trim() == '1';
         if (t.startsWith('SNI=')) sniOk = t.substring(4).trim() == '1';
+        if (t.startsWith('VPN=')) vpnMode = t.substring(4).trim();
       }
       return {
         'running': pid.isNotEmpty,
@@ -236,6 +180,7 @@ echo "SNI=\$sni_ok"
         'dnsPort': dnsPort,
         'natOk': natOk,
         'sniOk': sniOk,
+        'vpnMode': vpnMode.isEmpty ? 'off' : vpnMode,
       };
     } catch (_) {
       return {
@@ -244,6 +189,7 @@ echo "SNI=\$sni_ok"
         'dnsPort': '',
         'natOk': false,
         'sniOk': false,
+        'vpnMode': 'off',
       };
     }
   }
