@@ -126,6 +126,68 @@ class ModuleConfigService {
     }
   }
 
+  Future<bool> readVpnDnsTakeover() async {
+    if (!_isAndroid) return false;
+    try {
+      final result = await Process.run('su', ['-c', 'cat $moduleConfigPath']);
+      if (result.exitCode != 0) return false;
+      final content = result.stdout.toString();
+      for (final rawLine in content.split('\n')) {
+        final line = rawLine.trim();
+        if (line.startsWith('VPN_DNS_TAKEOVER=')) {
+          final val = line
+              .substring('VPN_DNS_TAKEOVER='.length)
+              .replaceAll('"', '')
+              .replaceAll("'", '')
+              .trim();
+          return val == '1';
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> saveVpnDnsTakeover(bool enabled) async {
+    if (!_isAndroid) return false;
+    try {
+      final readResult =
+          await Process.run('su', ['-c', 'cat $moduleConfigPath']);
+      if (readResult.exitCode != 0) return false;
+
+      final targetVal = enabled ? '1' : '0';
+      final lines = readResult.stdout.toString().split('\n');
+      final updatedLines = <String>[];
+      var replaced = false;
+
+      for (final line in lines) {
+        if (line.trimLeft().startsWith('VPN_DNS_TAKEOVER=')) {
+          replaced = true;
+          updatedLines.add('VPN_DNS_TAKEOVER=$targetVal');
+          continue;
+        }
+        updatedLines.add(line);
+      }
+      if (!replaced) {
+        updatedLines.add('VPN_DNS_TAKEOVER=$targetVal');
+      }
+      final content = updatedLines.join('\n');
+
+      final writer =
+          await Process.start('su', ['-c', 'cat > $moduleConfigPath']);
+      writer.stdin.add(utf8.encode(content));
+      await writer.stdin.close();
+      final writeResult = await writer.exitCode;
+      if (writeResult == 0) {
+        await reloadFirewallRules();
+      }
+      return writeResult == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> getModuleDiagnostics() async {
     if (!_isAndroid) {
       return {

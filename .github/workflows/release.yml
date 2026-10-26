@@ -21,21 +21,19 @@ jobs:
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.24.7
-          name: "AdGuard Home Manager v2.24.7"
+          tag_name: v2.24.8
+          name: "AdGuard Home Manager v2.24.8"
           body: |
-            ### AdGuard Home Manager `v2.24.7`
+            ### AdGuard Home Manager `v2.24.8`
 
             专为 **[AdGuard Home For Android](https://github.com/WEIHEWU/AdGuard-Home-For-Android-wu)** 定制的配套管理器客户端。
 
-            #### 🆕 v2.24.7 更新内容
-            - **应用放行名单（App Allowlist）管理**：
-              - 设置 -> 模块专属设置中新增「应用放行名单」入口，支持一键勾选已安装应用、包名搜索与手动输入自定义包名；
-              - 针对网银、外服游戏、交管等特殊应用，在前台运行时自动暂停过滤，离开后秒级自动恢复。
-            - **首页数据概览样式切换（Overview Style）**：
-              - 首页全新支持 **折线图 (Line)**、**柱状图 (Bar)**、**数字卡片 (Cards)** 3 种概览模式自由切换，满足图表趋势或紧凑数字不同偏好。
-            - **弹窗应用遮罩与动效重构**：
-              - 模块弹窗与应用放行面板全面升级 **8px 高斯模糊毛玻璃背景遮罩 (`BackdropFilter`)**，消除窗口层级撕裂；
-              - 引入全局弹性阻尼回弹动效 (`BouncingScrollPhysics`) 与卡片按压触感反馈 (`HapticFeedback`)。
+            #### 🆕 v2.24.8 更新内容
+            - **新增「VPN 下强制接管 DNS（回国加速模式）」可视化开关**：
+              - 设置 -> 模块设置中新增一键切换开关，免重启即时热重载 `iptables` 规则并刷新系统 DNS 缓存；
+              - **开启 (`VPN_DNS_TAKEOVER=1`)**：适合海外使用“一键回国 VPN”，配合国内音视频 DoH 分流，同时兼顾回国解锁与全网去广告；
+              - **关闭 (`VPN_DNS_TAKEOVER=0`)**：适合国内使用“翻墙出国 VPN”（Clash / Sing-box Fake-IP 模式），自动放行 `tun+/utun+` DNS 防止直连污染，同时由底层 `AGH_SNI` (443 端口 TLS 握手嗅探) 继续拦截广告；
+              - 完美解决跨国出差/回国探亲时的模式切换需求，无后台网络轮询、0 额外耗电、0 死循环风险。
+            - **包含 v2.24.7 全部特性**：应用放行名单管理、首页 3 种数据概览样式切换、8px 毛玻璃遮罩与弹性动效。
           files: |
             releases/AdGuardHomeManager.apk
