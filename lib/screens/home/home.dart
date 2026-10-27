@@ -9,7 +9,9 @@ import 'package:adguard_home_manager/screens/home/combined_chart.dart';
 import 'package:adguard_home_manager/screens/home/bar_chart.dart';
 import 'package:adguard_home_manager/screens/home/summary_cards.dart';
 import 'package:adguard_home_manager/screens/home/protection_switch.dart';
+import 'package:adguard_home_manager/screens/home/module_quick_card.dart';
 import 'package:adguard_home_manager/screens/home/top_items/top_items_lists.dart';
+import 'package:adguard_home_manager/services/module_config_service.dart';
 
 import 'package:adguard_home_manager/providers/logs_provider.dart';
 import 'package:adguard_home_manager/functions/number_format.dart';
@@ -130,6 +132,7 @@ class _HomeState extends State<Home> {
                       SliverList.list(
                         children: [
                           const ProtectionSwitch(),
+                          const ModuleQuickCard(),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
                             child: Row(
@@ -302,6 +305,16 @@ class _HomeState extends State<Home> {
                                       .colorScheme
                                       .onSurfaceVariant,
                                 ),
+                              ),
+                              const SizedBox(height: 20),
+                              FilledButton.icon(
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('重新同步端口并重试'),
+                                onPressed: () async {
+                                  await ModuleConfigService()
+                                      .reloadFirewallRules();
+                                  await statusProvider.getServerStatus();
+                                },
                               ),
                             ],
                           ),

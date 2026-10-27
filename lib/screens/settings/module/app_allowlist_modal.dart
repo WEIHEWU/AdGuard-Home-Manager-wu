@@ -20,7 +20,7 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
 
   bool _loading = true;
   bool _saving = false;
-  List<Map<String, String>> _installedApps = [];
+  List<Map<String, dynamic>> _installedApps = [];
   Set<String> _selectedPackages = {};
   String _filter = 'all'; // 'all' or 'selected'
   String _searchQuery = '';
@@ -50,22 +50,33 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
     ]);
 
     final allowlist = results[0] as List<String>;
-    final installed = results[1] as List<Map<String, String>>;
+    final allowSet = allowlist.toSet();
+    final installed = results[1] as List<Map<String, dynamic>>;
 
     // Ensure allowlisted packages are present in the list even if not in third-party pm output
-    final existingPkgs = installed.map((e) => e['package']!).toSet();
+    final existingPkgs = installed.map((e) => e['package'] as String).toSet();
     for (final pkg in allowlist) {
       if (!existingPkgs.contains(pkg)) {
         installed.insert(0, {
           'package': pkg,
           'name': ModuleConfigService.resolveKnownAppName(pkg),
+          'uid': null,
+          'icon': null,
         });
       }
     }
 
+    // Sort selected apps to the top, then alphabetically by app name
+    installed.sort((a, b) {
+      final aSel = allowSet.contains(a['package'] as String);
+      final bSel = allowSet.contains(b['package'] as String);
+      if (aSel != bSel) return aSel ? -1 : 1;
+      return (a['name'] as String).compareTo(b['name'] as String);
+    });
+
     if (!mounted) return;
     setState(() {
-      _selectedPackages = allowlist.toSet();
+      _selectedPackages = allowSet;
       _installedApps = installed;
       _loading = false;
     });
@@ -83,11 +94,11 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
     showSnackbar(
       appConfigProvider: appConfigProvider,
       label: ok
-          ? '应用放行名单已保存（共 ${_selectedPackages.length} 款应用）'
+          ? '已保存并即时生效（共放行 ${_selectedPackages.length} 款应用）'
           : '保存失败，请检查 Root 权限',
       color: ok ? Colors.green : Colors.red,
     );
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(true);
   }
 
   void _showAddCustomPackageDialog() {
@@ -128,9 +139,12 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
                   setState(() {
                     _selectedPackages.add(pkg);
                     if (!_installedApps.any((e) => e['package'] == pkg)) {
-                      _installedApps.insert(0, {
+                      _installedApps.insert(0, <String, dynamic>{
                         'package': pkg,
                         'name': pkg,
+                        'uid': null,
+                        'isSystem': false,
+                        'icon': null,
                       });
                     }
                   });
@@ -151,8 +165,8 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
     final colorScheme = theme.colorScheme;
 
     final filteredApps = _installedApps.where((app) {
-      final name = app['name']!.toLowerCase();
-      final pkg = app['package']!.toLowerCase();
+      final name = (app['name'] as String? ?? '').toLowerCase();
+      final pkg = (app['package'] as String? ?? '').toLowerCase();
       final matchesSearch = _searchQuery.isEmpty ||
           name.contains(_searchQuery) ||
           pkg.contains(_searchQuery);
@@ -259,14 +273,14 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    Icons.info_outline_rounded,
+                    Icons.verified_user_outlined,
                     size: 18,
                     color: colorScheme.primary,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '名单内应用在前台时自动暂停过滤，离开后自动恢复；通过前台感知生效，不依赖 DNS 归属，专治网银、游戏、交管等特殊应用的误杀问题。',
+                      '双引擎放行：保存后立即在内核级 (iptables UID) 直通放行该应用的全部 DNS/DoT/SNI 流量，并在前台打开时自动暂停全局过滤，彻底解决网银、游戏、视频等应用的断网或误杀问题。',
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.onPrimaryContainer,
@@ -288,7 +302,7 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
                       decoration: InputDecoration(
                         isDense: true,
                         prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                        hintText: '搜索应用或包名…',
+                        hintText: '搜索应用名称或包名…',
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear_rounded, size: 18),
@@ -343,29 +357,45 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
                               const Divider(height: 1, indent: 64),
                           itemBuilder: (context, index) {
                             final app = filteredApps[index];
-                            final pkg = app['package']!;
-                            final name = app['name']!;
+                            final pkg = app['package'] as String? ?? '';
+                            final name = app['name'] as String? ?? pkg;
+                            final uid = app['uid'];
+                            final iconBytes = app['icon'] as Uint8List?;
                             final isChecked = _selectedPackages.contains(pkg);
 
                             return CheckboxListTile(
                               value: isChecked,
                               activeColor: colorScheme.primary,
-                              secondary: CircleAvatar(
-                                radius: 18,
-                                backgroundColor: isChecked
-                                    ? colorScheme.primaryContainer
-                                    : colorScheme.surfaceContainerHighest,
-                                child: Text(
-                                  name.characters.first,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: isChecked
-                                        ? colorScheme.onPrimaryContainer
-                                        : colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
+                              secondary: iconBytes != null &&
+                                      iconBytes.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.memory(
+                                        iconBytes,
+                                        width: 38,
+                                        height: 38,
+                                        fit: BoxFit.cover,
+                                        gaplessPlayback: true,
+                                      ),
+                                    )
+                                  : CircleAvatar(
+                                      radius: 19,
+                                      backgroundColor: isChecked
+                                          ? colorScheme.primaryContainer
+                                          : colorScheme.surfaceContainerHighest,
+                                      child: Text(
+                                        name.isNotEmpty
+                                            ? name.characters.first
+                                            : '?',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: isChecked
+                                              ? colorScheme.onPrimaryContainer
+                                              : colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
                               title: Text(
                                 name,
                                 maxLines: 1,
@@ -378,7 +408,7 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
                                 ),
                               ),
                               subtitle: Text(
-                                pkg,
+                                uid != null ? '$pkg · UID $uid' : pkg,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(

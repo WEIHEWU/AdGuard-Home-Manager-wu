@@ -21,17 +21,23 @@ jobs:
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.24.8
-          name: "AdGuard Home Manager v2.24.8"
+          tag_name: v2.24.9
+          name: "AdGuard Home Manager v2.24.9"
           body: |
-            ### AdGuard Home Manager `v2.24.8`
+            ### AdGuard Home Manager `v2.24.9`
 
             专为 **[AdGuard Home For Android](https://github.com/WEIHEWU/AdGuard-Home-For-Android-wu)** 定制的配套管理器客户端。
 
-            #### 🆕 v2.24.8 更新内容
-            - **VPN 智能无感协同状态自检展示**：
-              - 配合模块底层零耗电本地自动识别引擎（`VPN_DNS_TAKEOVER=auto`），彻底移除繁琐的手动模式开关；
-              - 在「设置 -> 模块运行状态与自检」中自动实时显示当前识别到的 VPN 协同状态（`VPN: 回国去广告` / `VPN: 翻墙防污染`）。
-            - **包含 v2.24.7 全部特性**：应用放行名单管理、首页 3 种数据概览样式切换、8px 毛玻璃遮罩与弹性动效。
+            #### 🆕 v2.24.9 更新内容
+            - **首页新增「模块引擎与排错快捷台」(`ModuleQuickCard`)**：
+              - 实时展示模块底层 `DNS 接管`、`SNI 嗅探`、`VPN 协同模式`、`核心内存占用 (MB)` 及 `已放行应用数`；
+              - **🔍 误杀排错助手**：自动聚合最近被拦截的域名（区分 `SNI` 与 `DNS` 拦截、显示拦截时间与命中规则），支持一键放行（自动写入 `$important` 最高优先级白名单并同步清空 AGH 与系统 `netd` DNS 缓存）；
+              - **📱 应用白名单** & **⚡ 网络刷新**：首页一键直达应用白名单或一键刷新系统/核心 DNS 缓存并重载防火墙规则。
+            - **应用白名单全面升级（中文名 + 图标 + 内核 UID 直通即刻生效）**：
+              - 原生接入 Android `PackageManager`，显示应用中文名称、高清图标与 UID，已放行应用自动置顶；
+              - 点击保存立即触发 `iptables.sh --apply-allowlist` 刷新内核级 UID 直通放行与前台感知规则。
+            - **通知栏快捷开关磁贴 (`AdGuardTileService`) 与端口自愈加固**：
+              - 当核心重启导致端口变化时自动重读 `AdGuardHome.yaml` 同步最新端口并重试；
+              - 切换保护开关或放行/拦截域名时自动刷新 AGH 缓存与系统 DNS 缓存，无需等待 TTL 过期。
           files: |
             releases/AdGuardHomeManager.apk

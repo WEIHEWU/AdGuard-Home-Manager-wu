@@ -88,6 +88,8 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     'natOk': false,
     'sniOk': false,
     'vpnMode': 'off',
+    'rssMb': '',
+    'allowlistCount': 0,
   };
 
   @override
@@ -132,6 +134,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     final natOk = _diag['natOk'] == true;
     final sniOk = _diag['sniOk'] == true;
     final vpnMode = (_diag['vpnMode'] ?? 'off').toString();
+    final rssMb = (_diag['rssMb'] ?? '').toString();
     if (!running) {
       return '核心未运行（点击查看日志或重载规则）';
     }
@@ -141,7 +144,8 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     } else if (vpnMode == 'bypass') {
       vpnText = ' · VPN: 翻墙防污染';
     }
-    return '核心运行中 (PID: $pid${dnsPort.isNotEmpty ? ", DNS端口: $dnsPort" : ""}) · DNS接管: ${natOk ? "正常" : "异常"} · SNI过滤: ${sniOk ? "正常" : "关闭/异常"}$vpnText';
+    final memText = rssMb.isNotEmpty ? ', 内存: $rssMb' : '';
+    return '核心运行中 (PID: $pid${dnsPort.isNotEmpty ? ", DNS端口: $dnsPort" : ""}$memText) · DNS接管: ${natOk ? "正常" : "异常"} · SNI过滤: ${sniOk ? "正常" : "关闭/异常"}$vpnText';
   }
 
   Future<void> _showLogsAndDiagModal() async {
@@ -185,7 +189,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                         color: Theme.of(ctx)
                             .colorScheme
                             .surfaceContainerHighest
-                            .withOpacity(0.5),
+                            .withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: SingleChildScrollView(
@@ -251,14 +255,17 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     );
   }
 
-  void _handleOpenAppAllowlist() {
-    showModalBottomSheet(
+  Future<void> _handleOpenAppAllowlist() async {
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) => const AppAllowlistModal(),
     );
+    if (mounted) {
+      _loadDiagnostics();
+    }
   }
 
   Future<void> _handleCleanAdCaches() async {
@@ -542,7 +549,8 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                           CustomListTile(
                             icon: Icons.checklist_rounded,
                             title: '应用放行名单',
-                            subtitle: '名单内应用在前台时自动暂停过滤，离开后自动恢复（解决网银/游戏误杀）',
+                            subtitle:
+                                '内核级 UID 流量直通 + 前台感知双引擎放行${(_diag['allowlistCount'] as int? ?? 0) > 0 ? "（已放行 ${_diag['allowlistCount']} 款应用）" : "（解决网银/游戏误杀）"}',
                             onTap: _handleOpenAppAllowlist,
                             trailing: const Icon(Icons.chevron_right_rounded),
                           ),

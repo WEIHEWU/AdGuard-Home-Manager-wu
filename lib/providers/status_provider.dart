@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:adguard_home_manager/models/server_status.dart';
 import 'package:adguard_home_manager/models/filtering_status.dart';
 import 'package:adguard_home_manager/constants/enums.dart';
 import 'package:adguard_home_manager/providers/servers_provider.dart';
 import 'package:adguard_home_manager/functions/time_server_disabled.dart';
+import 'package:adguard_home_manager/services/module_config_service.dart';
 
 class StatusProvider with ChangeNotifier {
   ServersProvider? _serversProvider;
@@ -122,6 +125,11 @@ class StatusProvider with ChangeNotifier {
             _serverStatus!.disabledUntil = null;
             stopCountdown();
           }
+          // 切换总开关时自动刷新 AGH 缓存与系统 DNS 缓存，确保立即生效
+          unawaited(_serversProvider!.apiClient2!.resetDnsCache());
+          if (Platform.isAndroid) {
+            unawaited(ModuleConfigService().flushSystemDnsCache());
+          }
           notifyListeners();
           return true;
         } else {
@@ -213,7 +221,21 @@ class StatusProvider with ChangeNotifier {
       _loadStatus = LoadStatus.loading;
     }
 
-    final result = await _serversProvider!.apiClient2!.getServerStatus();
+    var result = await _serversProvider!.apiClient2!.getServerStatus();
+    if (result.successful != true && Platform.isAndroid) {
+      // 如果由于核心重启导致端口变化，自动重读 AdGuardHome.yaml 并同步端口
+      final addr = await ModuleConfigService().readHttpAddress();
+      if (addr != null && addr.isNotEmpty) {
+        await _serversProvider!.autoConnectModule(addr);
+        final selected = _serversProvider!.selectedServer;
+        if (selected != null && selected.port != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('adguard_port', selected.port!);
+        }
+        result = await _serversProvider!.apiClient2!.getServerStatus();
+      }
+    }
+
     if (result.successful == true) {
       final status = result.content as ServerStatus;
       setServerStatusData(data: status);
@@ -259,6 +281,11 @@ class StatusProvider with ChangeNotifier {
           .postFilteringRules(data: {'rules': newRules});
 
       if (result.successful == true) {
+        // 放行或拦截域名后立即清空 AGH 缓存和系统 DNS 缓存，无需等待 TTL 过期
+        unawaited(_serversProvider!.apiClient2!.resetDnsCache());
+        if (Platform.isAndroid) {
+          unawaited(ModuleConfigService().flushSystemDnsCache());
+        }
         return true;
       } else {
         _filteringStatus = oldStatus;

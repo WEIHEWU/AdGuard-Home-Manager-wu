@@ -1,9 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
+
 class ModuleConfigService {
   static const String moduleConfigPath = '/data/adb/agh/scripts/config.prop';
   static const String moduleYamlPath = '/data/adb/agh/bin/AdGuardHome.yaml';
+  static const MethodChannel _installedAppsChannel =
+      MethodChannel('com.jgeek00.adguard_home_manager/installed_apps');
 
   bool get _isAndroid => Platform.isAndroid;
 
@@ -135,6 +139,8 @@ class ModuleConfigService {
         'natOk': false,
         'sniOk': false,
         'vpnMode': 'off',
+        'rssMb': '',
+        'allowlistCount': 0,
       };
     }
     try {
@@ -144,11 +150,17 @@ dns_port=\$(sed -n 's/^redir_port=//p' /data/adb/agh/scripts/config.prop 2>/dev/
 iptables -w 2 -t nat -C OUTPUT -j ADGUARD >/dev/null 2>&1 && nat_ok=1 || nat_ok=0
 iptables -w 2 -t filter -C OUTPUT -j AGH_SNI >/dev/null 2>&1 && sni_ok=1 || sni_ok=0
 vpn_mode=\$(cat /data/adb/agh/vpn_mode_status 2>/dev/null | head -n 1)
+rss_kb=""
+[ -n "\$pid" ] && rss_kb=\$(awk '/^VmRSS:/ {print \$2}' "/proc/\$pid/status" 2>/dev/null)
+allow_cnt=0
+[ -s /data/adb/agh/app-allow.txt ] && allow_cnt=\$(grep -cvE '^[[:space:]]*(#|\$)' /data/adb/agh/app-allow.txt 2>/dev/null || echo 0)
 echo "PID=\$pid"
 echo "PORT=\$dns_port"
 echo "NAT=\$nat_ok"
 echo "SNI=\$sni_ok"
 echo "VPN=\$vpn_mode"
+echo "RSS=\$rss_kb"
+echo "ALLOW=\$allow_cnt"
 ''';
       final result = await Process.run('su', ['-c', cmd]);
       if (result.exitCode != 0) {
@@ -159,6 +171,8 @@ echo "VPN=\$vpn_mode"
           'natOk': false,
           'sniOk': false,
           'vpnMode': 'off',
+          'rssMb': '',
+          'allowlistCount': 0,
         };
       }
       String pid = '';
@@ -166,6 +180,8 @@ echo "VPN=\$vpn_mode"
       bool natOk = false;
       bool sniOk = false;
       String vpnMode = 'off';
+      String rssKb = '';
+      int allowlistCount = 0;
       for (final line in result.stdout.toString().split('\n')) {
         final t = line.trim();
         if (t.startsWith('PID=')) pid = t.substring(4).trim();
@@ -173,6 +189,15 @@ echo "VPN=\$vpn_mode"
         if (t.startsWith('NAT=')) natOk = t.substring(4).trim() == '1';
         if (t.startsWith('SNI=')) sniOk = t.substring(4).trim() == '1';
         if (t.startsWith('VPN=')) vpnMode = t.substring(4).trim();
+        if (t.startsWith('RSS=')) rssKb = t.substring(4).trim();
+        if (t.startsWith('ALLOW=')) {
+          allowlistCount = int.tryParse(t.substring(6).trim()) ?? 0;
+        }
+      }
+      String rssMb = '';
+      final kb = int.tryParse(rssKb);
+      if (kb != null && kb > 0) {
+        rssMb = '${(kb / 1024).toStringAsFixed(1)} MB';
       }
       return {
         'running': pid.isNotEmpty,
@@ -181,6 +206,8 @@ echo "VPN=\$vpn_mode"
         'natOk': natOk,
         'sniOk': sniOk,
         'vpnMode': vpnMode.isEmpty ? 'off' : vpnMode,
+        'rssMb': rssMb,
+        'allowlistCount': allowlistCount,
       };
     } catch (_) {
       return {
@@ -190,6 +217,8 @@ echo "VPN=\$vpn_mode"
         'natOk': false,
         'sniOk': false,
         'vpnMode': 'off',
+        'rssMb': '',
+        'allowlistCount': 0,
       };
     }
   }
@@ -228,8 +257,21 @@ echo "VPN=\$vpn_mode"
         'su',
         [
           '-c',
-          'pkill -f "/data/adb/agh/scripts/iptables.sh" 2>/dev/null; sh /data/adb/agh/scripts/iptables.sh >/dev/null 2>&1 &'
+          'if pidof -x /data/adb/agh/scripts/iptables.sh >/dev/null 2>&1; then sh /data/adb/agh/scripts/iptables.sh --reload >/dev/null 2>&1; else sh /data/adb/agh/scripts/iptables.sh >/dev/null 2>&1 & fi'
         ],
+      );
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> flushSystemDnsCache() async {
+    if (!_isAndroid) return false;
+    try {
+      final result = await Process.run(
+        'su',
+        ['-c', 'ndc resolver flushenv >/dev/null 2>&1 || true'],
       );
       return result.exitCode == 0;
     } catch (_) {
@@ -307,6 +349,7 @@ fi
 mkdir -p /data/adb/agh
 printf '%s\n' '$escaped' > /data/adb/agh/app-allow.txt
 chmod 644 /data/adb/agh/app-allow.txt
+sh /data/adb/agh/scripts/iptables.sh --apply-allowlist >/dev/null 2>&1 &
 ''';
       final result = await Process.run('su', ['-c', cmd]);
       return result.exitCode == 0;
@@ -315,13 +358,50 @@ chmod 644 /data/adb/agh/app-allow.txt
     }
   }
 
-  Future<List<Map<String, String>>> getInstalledApps() async {
+  Future<List<Map<String, dynamic>>> getInstalledApps({
+    bool includeSystem = false,
+  }) async {
     if (!_isAndroid) return [];
     try {
-      final result = await Process.run('su', ['-c', 'pm list packages -3 2>/dev/null || pm list packages 2>/dev/null']);
+      final rawList = await _installedAppsChannel.invokeMethod<List<dynamic>>(
+        'getInstalledApps',
+        {'includeSystem': includeSystem},
+      );
+      if (rawList != null && rawList.isNotEmpty) {
+        final List<Map<String, dynamic>> apps = [];
+        for (final item in rawList) {
+          if (item is Map) {
+            final pkg = (item['package'] ?? '').toString().trim();
+            if (pkg.isEmpty) continue;
+            final rawName = (item['name'] ?? '').toString().trim();
+            final name = (rawName.isNotEmpty && rawName != pkg)
+                ? rawName
+                : resolveKnownAppName(pkg);
+            final icon = item['icon'] is Uint8List ? item['icon'] as Uint8List : null;
+            final uid = item['uid'] is int ? item['uid'] as int : null;
+            apps.add({
+              'package': pkg,
+              'name': name,
+              'uid': uid,
+              'icon': icon,
+            });
+          }
+        }
+        apps.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+        return apps;
+      }
+    } catch (_) {
+      // Fallback to root pm list packages below
+    }
+
+    try {
+      final result = await Process.run(
+        'su',
+        ['-c', 'pm list packages -3 2>/dev/null || pm list packages 2>/dev/null'],
+      );
       if (result.exitCode != 0) return [];
       final lines = result.stdout.toString().split('\n');
-      final List<Map<String, String>> apps = [];
+      final List<Map<String, dynamic>> apps = [];
       for (final raw in lines) {
         var pkg = raw.trim();
         if (pkg.startsWith('package:')) {
@@ -331,10 +411,12 @@ chmod 644 /data/adb/agh/app-allow.txt
           apps.add({
             'package': pkg,
             'name': resolveKnownAppName(pkg),
+            'uid': null,
+            'icon': null,
           });
         }
       }
-      apps.sort((a, b) => a['name']!.compareTo(b['name']!));
+      apps.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
       return apps;
     } catch (_) {
       return [];

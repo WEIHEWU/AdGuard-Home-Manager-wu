@@ -2,7 +2,11 @@ package com.liuzq2002.adguard_home_manager
 
 import android.app.LocaleManager
 import android.content.ComponentName
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.LocaleList
 import android.service.quicksettings.TileService
@@ -11,10 +15,12 @@ import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 
 class MainActivity: FlutterActivity() {
     private val channelName = "com.jgeek00.adguard_home_manager/locale"
     private val localNetworkChannelName = "com.jgeek00.adguard_home_manager/local_network"
+    private val installedAppsChannelName = "com.jgeek00.adguard_home_manager/installed_apps"
 
     // String literal on purpose: the constant only exists in API 37 SDK and
     // the project compiles with 36.
@@ -57,6 +63,74 @@ class MainActivity: FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            installedAppsChannelName
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getInstalledApps" -> {
+                    val includeSystem = call.argument<Boolean>("includeSystem") ?: false
+                    Thread {
+                        try {
+                            val apps = queryInstalledApps(includeSystem)
+                            runOnUiThread { result.success(apps) }
+                        } catch (t: Throwable) {
+                            runOnUiThread {
+                                result.error("QUERY_APPS_FAILED", t.message, null)
+                            }
+                        }
+                    }.start()
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun queryInstalledApps(includeSystem: Boolean): List<Map<String, Any?>> {
+        val pm = packageManager
+        val installed = pm.getInstalledApplications(0)
+        val selfPkg = applicationContext.packageName
+        val list = ArrayList<Map<String, Any?>>(installed.size)
+        for (app in installed) {
+            val pkg = app.packageName ?: continue
+            if (pkg == selfPkg) continue
+            val isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0 &&
+                (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0
+            if (isSystem && !includeSystem) continue
+
+            val label = try {
+                pm.getApplicationLabel(app)?.toString()?.trim().takeUnless { it.isNullOrEmpty() } ?: pkg
+            } catch (_: Throwable) {
+                pkg
+            }
+            val iconBytes = try {
+                drawableToPngBytes(pm.getApplicationIcon(app), 72)
+            } catch (_: Throwable) {
+                null
+            }
+            list.add(
+                mapOf(
+                    "package" to pkg,
+                    "name" to label,
+                    "uid" to app.uid,
+                    "isSystem" to isSystem,
+                    "icon" to iconBytes
+                )
+            )
+        }
+        return list
+    }
+
+    private fun drawableToPngBytes(drawable: Drawable, sizePx: Int): ByteArray? {
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, sizePx, sizePx)
+        drawable.draw(canvas)
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+        bitmap.recycle()
+        return stream.toByteArray()
     }
 
     /** Local Network Protection is only enforced on Android 16+, and the
