@@ -9,7 +9,6 @@ import 'package:adguard_home_manager/screens/home/combined_chart.dart';
 import 'package:adguard_home_manager/screens/home/bar_chart.dart';
 import 'package:adguard_home_manager/screens/home/summary_cards.dart';
 import 'package:adguard_home_manager/screens/home/protection_switch.dart';
-import 'package:adguard_home_manager/screens/home/module_quick_card.dart';
 import 'package:adguard_home_manager/screens/home/top_items/top_items_lists.dart';
 import 'package:adguard_home_manager/services/module_config_service.dart';
 
@@ -132,7 +131,6 @@ class _HomeState extends State<Home> {
                       SliverList.list(
                         children: [
                           const ProtectionSwitch(),
-                          const ModuleQuickCard(),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
                             child: Row(

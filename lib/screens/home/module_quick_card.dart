@@ -5,7 +5,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_miuix/miuix.dart';
 
 import 'package:adguard_home_manager/functions/snackbar.dart';
 import 'package:adguard_home_manager/models/logs.dart';
@@ -15,25 +14,23 @@ import 'package:adguard_home_manager/providers/status_provider.dart';
 import 'package:adguard_home_manager/screens/settings/module/app_allowlist_modal.dart';
 import 'package:adguard_home_manager/services/module_config_service.dart';
 
-class ModuleQuickCard extends StatefulWidget {
-  const ModuleQuickCard({super.key});
+/// 极简内嵌式模块快捷操作区（内嵌于首页顶部保护主卡片中）：
+/// - 常态下仅展示一行 3 个高频操作按钮（误杀排错、应用白名单、网络刷新），零视觉噪音；
+/// - 仅当检测到核心未运行或 DNS/SNI 转发异常时，才在按钮上方显示一行异常修复提示。
+class ModuleQuickActions extends StatefulWidget {
+  const ModuleQuickActions({super.key});
 
   @override
-  State<ModuleQuickCard> createState() => _ModuleQuickCardState();
+  State<ModuleQuickActions> createState() => _ModuleQuickActionsState();
 }
 
-class _ModuleQuickCardState extends State<ModuleQuickCard> {
+class _ModuleQuickActionsState extends State<ModuleQuickActions> {
   bool _loadingDiag = true;
   bool _flushing = false;
   Map<String, dynamic> _diag = {
-    'running': false,
-    'pid': '',
-    'dnsPort': '',
-    'natOk': false,
-    'sniOk': false,
-    'vpnMode': 'off',
-    'rssMb': '',
-    'allowlistCount': 0,
+    'running': true,
+    'natOk': true,
+    'sniOk': true,
   };
 
   @override
@@ -70,7 +67,7 @@ class _ModuleQuickCardState extends State<ModuleQuickCard> {
       service.reloadFirewallRules(),
     ]);
 
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 500));
     await Future.wait([
       _loadDiagnostics(),
       statusProvider.getServerStatus(withLoadingIndicator: false),
@@ -80,7 +77,7 @@ class _ModuleQuickCardState extends State<ModuleQuickCard> {
     setState(() => _flushing = false);
     showSnackbar(
       appConfigProvider: appConfigProvider,
-      label: '已刷新系统与核心 DNS 缓存，并重载防火墙规则',
+      label: '已刷新 DNS 缓存并重载规则',
       color: Colors.green,
     );
   }
@@ -106,211 +103,108 @@ class _ModuleQuickCardState extends State<ModuleQuickCard> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (ctx) => _FalsePositiveAssistantModal(
-        onOpenAppAllowlist: () {
-          Navigator.of(ctx).pop();
-          _openAppAllowlist();
-        },
-      ),
+      builder: (ctx) => const _FalsePositiveAssistantModal(),
     );
-    if (mounted) {
-      _loadDiagnostics();
-    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
+  String? _getAnomalyMessage(bool generalEnabled) {
+    if (_loadingDiag || !generalEnabled) return null;
     final running = _diag['running'] == true;
     final natOk = _diag['natOk'] == true;
     final sniOk = _diag['sniOk'] == true;
-    final vpnMode = (_diag['vpnMode'] ?? 'off').toString();
-    final rssMb = (_diag['rssMb'] ?? '').toString();
-    final allowlistCount = (_diag['allowlistCount'] as int?) ?? 0;
-
-    String vpnLabel = '直连模式';
-    Color vpnColor = colorScheme.onSurfaceVariant;
-    if (vpnMode == 'takeover') {
-      vpnLabel = 'VPN 接管去广告';
-      vpnColor = Colors.blue;
-    } else if (vpnMode == 'bypass') {
-      vpnLabel = 'VPN 翻墙防污染';
-      vpnColor = Colors.teal;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: MiuixCard(
-        cornerRadius: 20,
-        insideMargin: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _loadingDiag
-                        ? Colors.grey
-                        : (running && natOk ? Colors.green : Colors.orange),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '模块引擎与排错快捷台',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (rssMb.isNotEmpty)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '内存 $rssMb',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                const SizedBox(width: 4),
-                InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: _loadDiagnostics,
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.refresh_rounded,
-                      size: 16,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _StatusBadge(
-                    icon: natOk
-                        ? Icons.check_circle_rounded
-                        : Icons.warning_amber_rounded,
-                    label: natOk ? 'DNS 接管正常' : 'DNS 未接管',
-                    color: natOk ? Colors.green : Colors.orange,
-                  ),
-                  const SizedBox(width: 6),
-                  _StatusBadge(
-                    icon: sniOk
-                        ? Icons.security_rounded
-                        : Icons.shield_outlined,
-                    label: sniOk ? 'SNI 嗅探生效' : 'SNI 未生效',
-                    color: sniOk ? Colors.green : Colors.orange,
-                  ),
-                  const SizedBox(width: 6),
-                  _StatusBadge(
-                    icon: Icons.vpn_lock_rounded,
-                    label: vpnLabel,
-                    color: vpnColor,
-                  ),
-                  if (allowlistCount > 0) ...[
-                    const SizedBox(width: 6),
-                    _StatusBadge(
-                      icon: Icons.verified_user_outlined,
-                      label: '已放行 $allowlistCount 款应用',
-                      color: colorScheme.primary,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _QuickActionButton(
-                    icon: Icons.troubleshoot_rounded,
-                    label: '误杀排错',
-                    highlight: true,
-                    onTap: _openFalsePositiveAssistant,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _QuickActionButton(
-                    icon: Icons.apps_rounded,
-                    label: '应用白名单',
-                    onTap: _openAppAllowlist,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _QuickActionButton(
-                    icon: _flushing
-                        ? Icons.hourglass_top_rounded
-                        : Icons.bolt_rounded,
-                    label: _flushing ? '刷新中…' : '网络刷新',
-                    onTap: _flushing ? () {} : _handleQuickFlush,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+    if (!running) return '模块核心未运行';
+    if (!natOk && !sniOk) return 'DNS 与 SNI 转发未生效';
+    if (!natOk) return 'DNS 转发规则未生效';
+    if (!sniOk) return 'SNI 过滤规则未生效';
+    return null;
   }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _StatusBadge({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: color,
+    final statusProvider = Provider.of<StatusProvider>(context);
+    final generalEnabled = statusProvider.serverStatus?.generalEnabled ?? true;
+    final anomalyMsg = _getAnomalyMessage(generalEnabled);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (anomalyMsg != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: Colors.orange,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    anomalyMsg,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ),
+                InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: _flushing ? null : _handleQuickFlush,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Text(
+                      '一键修复',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
-      ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _QuickActionButton(
+                icon: Icons.troubleshoot_rounded,
+                label: '误杀排错',
+                onTap: _openFalsePositiveAssistant,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _QuickActionButton(
+                icon: Icons.apps_rounded,
+                label: '应用白名单',
+                onTap: _openAppAllowlist,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _QuickActionButton(
+                icon: _flushing
+                    ? Icons.hourglass_top_rounded
+                    : Icons.bolt_rounded,
+                label: _flushing ? '刷新中…' : '网络刷新',
+                onTap: _flushing ? () {} : _handleQuickFlush,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -318,25 +212,20 @@ class _StatusBadge extends StatelessWidget {
 class _QuickActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final bool highlight;
   final VoidCallback onTap;
 
   const _QuickActionButton({
     required this.icon,
     required this.label,
-    this.highlight = false,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final bgColor = highlight
-        ? colorScheme.primaryContainer.withValues(alpha: 0.75)
-        : colorScheme.surfaceContainerHighest.withValues(alpha: 0.65);
-    final fgColor = highlight
-        ? colorScheme.onPrimaryContainer
-        : colorScheme.onSurfaceVariant;
+    final bgColor =
+        colorScheme.surfaceContainerHighest.withValues(alpha: 0.55);
+    final fgColor = colorScheme.onSurfaceVariant;
 
     return Material(
       color: bgColor,
@@ -345,11 +234,11 @@ class _QuickActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16, color: fgColor),
+              Icon(icon, size: 15, color: fgColor),
               const SizedBox(width: 5),
               Flexible(
                 child: Text(
@@ -358,7 +247,7 @@ class _QuickActionButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     color: fgColor,
                   ),
                 ),
@@ -388,11 +277,7 @@ class _BlockedDomainSummary {
 }
 
 class _FalsePositiveAssistantModal extends StatefulWidget {
-  final VoidCallback onOpenAppAllowlist;
-
-  const _FalsePositiveAssistantModal({
-    required this.onOpenAppAllowlist,
-  });
+  const _FalsePositiveAssistantModal();
 
   @override
   State<_FalsePositiveAssistantModal> createState() =>
@@ -446,8 +331,9 @@ class _FalsePositiveAssistantModalState
       for (final log in logs) {
         final domain = log.question.name?.trim() ?? '';
         if (domain.isEmpty) continue;
-        final isSni = (log.clientProto?.toLowerCase().contains('sni') ?? false) ||
-            log.question.type.toUpperCase() == 'SNI';
+        final isSni =
+            (log.clientProto?.toLowerCase().contains('sni') ?? false) ||
+                log.question.type.toUpperCase() == 'SNI';
         final ruleText = log.rules.isNotEmpty
             ? log.rules.first.text
             : (log.rule?.isNotEmpty == true ? log.rule! : log.reason);
@@ -513,17 +399,14 @@ class _FalsePositiveAssistantModalState
 
     showSnackbar(
       appConfigProvider: appConfigProvider,
-      label: ok
-          ? '已放行 $domain 并清空系统 DNS 缓存，请切回应用重试'
-          : '放行失败，请重试',
+      label: ok ? '已放行 $domain' : '放行失败，请重试',
       color: ok ? Colors.green : Colors.red,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     final filtered = _blockedDomains.where((item) {
       if (_searchQuery.isEmpty) return true;
@@ -534,7 +417,7 @@ class _FalsePositiveAssistantModalState
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.85,
+        height: MediaQuery.of(context).size.height * 0.82,
         decoration: BoxDecoration(
           color: colorScheme.surface.withValues(alpha: 0.94),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -543,7 +426,7 @@ class _FalsePositiveAssistantModalState
           children: [
             Center(
               child: Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                margin: const EdgeInsets.only(top: 10, bottom: 4),
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
@@ -553,7 +436,7 @@ class _FalsePositiveAssistantModalState
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: Row(
                 children: [
                   IconButton(
@@ -561,82 +444,30 @@ class _FalsePositiveAssistantModalState
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '误杀排错助手',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '展示最近被拦截的域名，点击「放行」立即解除拦截并刷新缓存',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                  const Expanded(
+                    child: Text(
+                      '误杀排错（最近拦截）',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.refresh_rounded),
-                    tooltip: '重新拉取最近拦截记录',
+                    icon: const Icon(Icons.refresh_rounded, size: 20),
                     onPressed: _fetchRecentBlocked,
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
-            // 引导去应用白名单的提示卡片
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.tips_and_updates_outlined,
-                    size: 18,
-                    color: colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '如果是某款 App 整体无法联网或闪退，建议直接将其加入应用白名单。',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    onPressed: widget.onOpenAppAllowlist,
-                    child: const Text('去加白名单'),
-                  ),
-                ],
-              ),
-            ),
-            // 搜索框
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
                   isDense: true,
                   prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                  hintText: '搜索被拦截的域名或命中规则…',
+                  hintText: '搜索域名…',
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear_rounded, size: 18),
@@ -647,12 +478,13 @@ class _FalsePositiveAssistantModalState
                     borderRadius: BorderRadius.circular(12),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                    vertical: 10,
+                    vertical: 9,
                     horizontal: 12,
                   ),
                 ),
               ),
             ),
+            const Divider(height: 1),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
@@ -660,8 +492,8 @@ class _FalsePositiveAssistantModalState
                       ? Center(
                           child: Text(
                             _searchQuery.isNotEmpty
-                                ? '未找到匹配的被拦截域名'
-                                : '最近暂无被拦截的请求记录',
+                                ? '无匹配域名'
+                                : '最近暂无拦截记录',
                             style: TextStyle(
                               color: colorScheme.onSurfaceVariant,
                             ),
@@ -680,23 +512,24 @@ class _FalsePositiveAssistantModalState
                                 _unblockingInProgress.contains(item.domain);
 
                             return ListTile(
+                              dense: true,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: 4,
+                                vertical: 2,
                               ),
                               title: Row(
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
+                                      horizontal: 5,
+                                      vertical: 1.5,
                                     ),
                                     decoration: BoxDecoration(
                                       color: (item.isSni
                                               ? Colors.purple
                                               : Colors.red)
-                                          .withValues(alpha: 0.14),
-                                      borderRadius: BorderRadius.circular(6),
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(5),
                                     ),
                                     child: Text(
                                       item.isSni ? 'SNI' : 'DNS',
@@ -717,22 +550,19 @@ class _FalsePositiveAssistantModalState
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontSize: 14,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                              subtitle: Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  '${_formatRelativeTime(item.latestTime)} · 拦截 ${item.count} 次 · 规则: ${item.ruleText}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
+                              subtitle: Text(
+                                '${_formatRelativeTime(item.latestTime)} · ${item.count}次 · ${item.ruleText}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               trailing: FilledButton.tonal(
@@ -754,7 +584,7 @@ class _FalsePositiveAssistantModalState
                                         ),
                                       )
                                     : Text(
-                                        isUnblocked ? '已放行' : '一键放行',
+                                        isUnblocked ? '已放行' : '放行',
                                         style: const TextStyle(fontSize: 12),
                                       ),
                               ),

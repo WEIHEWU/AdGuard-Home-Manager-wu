@@ -127,25 +127,30 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
   }
 
   String _buildDiagSummary() {
-    if (_diagLoading) return '正在检测模块运行状态…';
+    if (_diagLoading) return '正在检测…';
     final running = _diag['running'] == true;
-    final pid = (_diag['pid'] ?? '').toString();
-    final dnsPort = (_diag['dnsPort'] ?? '').toString();
     final natOk = _diag['natOk'] == true;
     final sniOk = _diag['sniOk'] == true;
     final vpnMode = (_diag['vpnMode'] ?? 'off').toString();
     final rssMb = (_diag['rssMb'] ?? '').toString();
     if (!running) {
-      return '核心未运行（点击查看日志或重载规则）';
+      return '未运行（点击查看日志或修复）';
     }
     var vpnText = '';
     if (vpnMode == 'takeover') {
-      vpnText = ' · VPN: 回国去广告';
+      vpnText = ' · VPN 回国去广告';
     } else if (vpnMode == 'bypass') {
-      vpnText = ' · VPN: 翻墙防污染';
+      vpnText = ' · VPN 翻墙防污染';
     }
-    final memText = rssMb.isNotEmpty ? ', 内存: $rssMb' : '';
-    return '核心运行中 (PID: $pid${dnsPort.isNotEmpty ? ", DNS端口: $dnsPort" : ""}$memText) · DNS接管: ${natOk ? "正常" : "异常"} · SNI过滤: ${sniOk ? "正常" : "关闭/异常"}$vpnText';
+    final memText = rssMb.isNotEmpty ? ' · $rssMb' : '';
+    if (natOk && sniOk) {
+      return '运行中 · 转发正常$memText$vpnText';
+    }
+    final issues = <String>[
+      if (!natOk) 'DNS 未接管',
+      if (!sniOk) 'SNI 未生效',
+    ].join(' / ');
+    return '运行中 · $issues$memText';
   }
 
   Future<void> _showLogsAndDiagModal() async {
@@ -514,10 +519,10 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                           ),
                           CustomListTile(
                             icon: Icons.cleaning_services_rounded,
-                            title: '清理应用开屏广告缓存',
+                            title: '清理开屏广告缓存',
                             subtitle: _cleaningAdCache
-                                ? '正在清理各应用本地广告缓存…'
-                                : '立即清理知乎、B站、美团、高德、音乐等应用的本地广告缓存（免重启）',
+                                ? '正在清理…'
+                                : '清理主流应用本地残留的广告缓存',
                             onTap: _cleaningAdCache ? null : _handleCleanAdCaches,
                             trailing: _cleaningAdCache
                                 ? const SizedBox(
@@ -530,10 +535,10 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                           ),
                           CustomListTile(
                             icon: Icons.restore_rounded,
-                            title: '恢复默认自定义规则',
+                            title: '恢复默认规则',
                             subtitle: _restoringRules
-                                ? '正在恢复默认自定义规则…'
-                                : '补全误删的模块默认防广告规则，或重置为出厂规则',
+                                ? '正在恢复…'
+                                : '补全或重置模块预置规则',
                             onTap: _restoringRules
                                 ? null
                                 : _handleRestoreFactoryRules,
@@ -548,16 +553,17 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                           ),
                           CustomListTile(
                             icon: Icons.checklist_rounded,
-                            title: '应用放行名单',
-                            subtitle:
-                                '内核级 UID 流量直通 + 前台感知双引擎放行${(_diag['allowlistCount'] as int? ?? 0) > 0 ? "（已放行 ${_diag['allowlistCount']} 款应用）" : "（解决网银/游戏误杀）"}',
+                            title: '应用白名单',
+                            subtitle: (_diag['allowlistCount'] as int? ?? 0) > 0
+                                ? '已放行 ${_diag['allowlistCount']} 款应用'
+                                : '指定应用免除过滤',
                             onTap: _handleOpenAppAllowlist,
                             trailing: const Icon(Icons.chevron_right_rounded),
                           ),
                           CustomListTile(
                             icon: Icons.toggle_on_rounded,
                             title: '通知栏快捷开关',
-                            subtitle: '在快捷设置中添加 AdGuard Home 开关（点击查看添加方法）',
+                            subtitle: '查看快捷磁贴添加方式',
                             onTap: _showTileHelp,
                             trailing: const Icon(Icons.chevron_right_rounded),
                           ),

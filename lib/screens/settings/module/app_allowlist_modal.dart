@@ -261,39 +261,9 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
               ),
             ),
             const Divider(height: 1),
-            // Info Alert Card
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.verified_user_outlined,
-                    size: 18,
-                    color: colorScheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '双引擎放行：保存后立即在内核级 (iptables UID) 直通放行该应用的全部 DNS/DoT/SNI 流量，并在前台打开时自动暂停全局过滤，彻底解决网银、游戏、视频等应用的断网或误杀问题。',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onPrimaryContainer,
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
             // Search & Filter
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
               child: Row(
                 children: [
                   Expanded(
@@ -359,7 +329,6 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
                             final app = filteredApps[index];
                             final pkg = app['package'] as String? ?? '';
                             final name = app['name'] as String? ?? pkg;
-                            final uid = app['uid'];
                             final iconBytes = app['icon'] as Uint8List?;
                             final isChecked = _selectedPackages.contains(pkg);
 
@@ -408,7 +377,7 @@ class _AppAllowlistModalState extends State<AppAllowlistModal> {
                                 ),
                               ),
                               subtitle: Text(
-                                uid != null ? '$pkg · UID $uid' : pkg,
+                                pkg,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
