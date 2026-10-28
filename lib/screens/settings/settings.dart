@@ -327,7 +327,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     setState(() => _cleaningAdCache = false);
     showSnackbar(
       appConfigProvider: appConfigProvider,
-      label: ok ? '已清理各应用本地开屏广告缓存' : '清理失败，请检查 Root 权限',
+      label: ok ? '已清理国内外应用开屏及广告 SDK 缓存' : '清理失败，请检查 Root 权限',
       color: ok ? Colors.green : Colors.red,
     );
   }
@@ -522,10 +522,10 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                           ),
                           CustomListTile(
                             icon: Icons.cleaning_services_rounded,
-                            title: '清理开屏广告缓存',
+                            title: '清理广告与 SDK 缓存',
                             subtitle: _cleaningAdCache
                                 ? '正在清理…'
-                                : '清理主流应用本地残留的广告缓存',
+                                : '清理国内外应用开屏与广告 SDK 离线缓存',
                             onTap: _cleaningAdCache ? null : _handleCleanAdCaches,
                             trailing: _cleaningAdCache
                                 ? const SizedBox(
