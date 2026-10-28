@@ -83,7 +83,7 @@ class LogsProvider with ChangeNotifier {
   void setSelectedResultStatus({required String value, bool? refetch}) {
     _selectedResultStatus = value;
     notifyListeners();
-    if (refetch = true) {
+    if (refetch == true) {
       filterLogs();
     }
   }

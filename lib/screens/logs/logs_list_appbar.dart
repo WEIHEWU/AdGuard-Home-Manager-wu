@@ -149,123 +149,136 @@ class LogsListAppBar extends StatelessWidget {
           ),
         const SizedBox(width: 8),
       ],
-      bottom: logsProvider.appliedFilters.searchText != null ||
-              logsProvider.appliedFilters.selectedResultStatus != 'all' ||
-              logsProvider.appliedFilters.clients.isNotEmpty
-          ? PreferredSize(
-              preferredSize: const Size(double.maxFinite, 70),
-              child: Container(
-                height: 50,
-                width: double.maxFinite,
-                padding: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(
-                    border: Border(
-                        bottom: BorderSide(
-                  color: showDivider == true
-                      ? Theme.of(context).colorScheme.onSurface.withOpacity(0.1)
-                      : Colors.transparent,
-                ))),
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    if (logsProvider.appliedFilters.searchText != null) ...[
-                      const SizedBox(width: 15),
-                      Chip(
-                        avatar: const Icon(
-                          Icons.search_rounded,
-                        ),
-                        label: Row(
-                          children: [
-                            Text(
-                              logsProvider.appliedFilters.searchText!,
-                            ),
-                          ],
-                        ),
-                        deleteIcon: const Icon(
-                          Icons.clear,
-                          size: 18,
-                        ),
-                        onDeleted: () {
-                          logsProvider.setAppliedFilters(AppliedFiters(
-                              selectedResultStatus: logsProvider
-                                  .appliedFilters.selectedResultStatus,
-                              searchText: null,
-                              clients: logsProvider.appliedFilters.clients));
-                          logsProvider.setSearchText(null);
-                          logsProvider.fetchLogs(inOffset: 0, searchText: '');
-                        },
-                      ),
-                    ],
-                    if (logsProvider.appliedFilters.selectedResultStatus !=
-                        'all') ...[
-                      const SizedBox(width: 15),
-                      Chip(
-                        avatar: const Icon(
-                          Icons.shield_rounded,
-                        ),
-                        label: Row(
-                          children: [
-                            Text(
-                              translatedString[logsProvider
-                                  .appliedFilters.selectedResultStatus]!,
-                            ),
-                          ],
-                        ),
-                        deleteIcon: const Icon(
-                          Icons.clear,
-                          size: 18,
-                        ),
-                        onDeleted: () {
-                          logsProvider.setAppliedFilters(AppliedFiters(
-                              selectedResultStatus: 'all',
-                              searchText:
-                                  logsProvider.appliedFilters.searchText,
-                              clients: logsProvider.appliedFilters.clients));
-                          logsProvider.setSelectedResultStatus(value: 'all');
-                          logsProvider.fetchLogs(
-                              inOffset: 0, responseStatus: 'all');
-                        },
-                      ),
-                    ],
-                    if (logsProvider.appliedFilters.clients.isNotEmpty) ...[
-                      const SizedBox(width: 15),
-                      Chip(
-                        avatar: const Icon(
-                          Icons.smartphone_rounded,
-                        ),
-                        label: Row(
-                          children: [
-                            Text(
-                              logsProvider.appliedFilters.clients.length == 1
-                                  ? logsProvider.appliedFilters.clients[0]
-                                  : "${logsProvider.appliedFilters.clients.length} ${AppLocalizations.of(context)!.clients}",
-                            ),
-                          ],
-                        ),
-                        deleteIcon: const Icon(
-                          Icons.clear,
-                          size: 18,
-                        ),
-                        onDeleted: () {
-                          logsProvider.setAppliedFilters(AppliedFiters(
-                              selectedResultStatus: logsProvider
-                                  .appliedFilters.selectedResultStatus,
-                              searchText:
-                                  logsProvider.appliedFilters.searchText,
-                              clients: []));
-                          logsProvider.setSelectedClients(null);
-                          logsProvider.fetchLogs(
-                              inOffset: 0,
-                              responseStatus: logsProvider
-                                  .appliedFilters.selectedResultStatus);
-                        },
-                      ),
-                    ],
-                    const SizedBox(width: 15),
-                  ],
+      bottom: PreferredSize(
+        preferredSize: const Size(double.maxFinite, 52),
+        child: Container(
+          height: 48,
+          width: double.maxFinite,
+          padding: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: showDivider == true
+                    ? Theme.of(context).colorScheme.onSurface.withOpacity(0.1)
+                    : Colors.transparent,
+              ),
+            ),
+          ),
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              for (final entry in const [
+                MapEntry('all', '全部'),
+                MapEntry('blocked', '已拦截'),
+                MapEntry('processed', '已放行'),
+              ]) ...[
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(
+                      entry.value,
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                    selected: logsProvider.appliedFilters.selectedResultStatus ==
+                        entry.key,
+                    visualDensity: VisualDensity.compact,
+                    showCheckmark: false,
+                    onSelected: (selected) {
+                      if (!selected &&
+                          logsProvider.appliedFilters.selectedResultStatus ==
+                              entry.key) {
+                        return;
+                      }
+                      logsProvider.setSelectedResultStatus(
+                        value: entry.key,
+                        refetch: true,
+                      );
+                    },
+                  ),
                 ),
-              ))
-          : null,
+              ],
+              if (logsProvider.appliedFilters.selectedResultStatus != 'all' &&
+                  logsProvider.appliedFilters.selectedResultStatus !=
+                      'blocked' &&
+                  logsProvider.appliedFilters.selectedResultStatus !=
+                      'processed') ...[
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: const Icon(Icons.shield_rounded, size: 16),
+                    label: Text(
+                      translatedString[
+                              logsProvider.appliedFilters.selectedResultStatus] ??
+                          logsProvider.appliedFilters.selectedResultStatus,
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                    deleteIcon: const Icon(Icons.clear, size: 16),
+                    onDeleted: () {
+                      logsProvider.setSelectedResultStatus(
+                        value: 'all',
+                        refetch: true,
+                      );
+                    },
+                  ),
+                ),
+              ],
+              if (logsProvider.appliedFilters.searchText != null) ...[
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: const Icon(Icons.search_rounded, size: 16),
+                    label: Text(
+                      logsProvider.appliedFilters.searchText!,
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                    deleteIcon: const Icon(Icons.clear, size: 16),
+                    onDeleted: () {
+                      logsProvider.setAppliedFilters(AppliedFiters(
+                          selectedResultStatus:
+                              logsProvider.appliedFilters.selectedResultStatus,
+                          searchText: null,
+                          clients: logsProvider.appliedFilters.clients));
+                      logsProvider.setSearchText(null);
+                      logsProvider.fetchLogs(inOffset: 0, searchText: '');
+                    },
+                  ),
+                ),
+              ],
+              if (logsProvider.appliedFilters.clients.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: const Icon(Icons.smartphone_rounded, size: 16),
+                    label: Text(
+                      logsProvider.appliedFilters.clients.length == 1
+                          ? logsProvider.appliedFilters.clients[0]
+                          : "${logsProvider.appliedFilters.clients.length} ${AppLocalizations.of(context)!.clients}",
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                    deleteIcon: const Icon(Icons.clear, size: 16),
+                    onDeleted: () {
+                      logsProvider.setAppliedFilters(AppliedFiters(
+                          selectedResultStatus:
+                              logsProvider.appliedFilters.selectedResultStatus,
+                          searchText: logsProvider.appliedFilters.searchText,
+                          clients: []));
+                      logsProvider.setSelectedClients(null);
+                      logsProvider.fetchLogs(
+                          inOffset: 0,
+                          responseStatus:
+                              logsProvider.appliedFilters.selectedResultStatus);
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -12,7 +12,6 @@ import 'package:adguard_home_manager/screens/settings/dns/clear_dns_cache_dialog
 import 'package:adguard_home_manager/screens/settings/dns/cache_config.dart';
 import 'package:adguard_home_manager/screens/settings/dns/dns_server_settings.dart';
 import 'package:adguard_home_manager/screens/settings/dns/bootstrap_dns.dart';
-import 'package:adguard_home_manager/screens/settings/dns/private_reverse_servers.dart';
 import 'package:adguard_home_manager/screens/settings/dns/upstream_dns.dart';
 import 'package:adguard_home_manager/widgets/custom_list_tile.dart';
 
@@ -174,12 +173,6 @@ class _DnsSettingsState extends State<DnsSettings> {
                       subtitle: AppLocalizations.of(context)!.fallbackDnsServersDescription,
                       onTap: () => navigate(const FallbackDnsScreen()),
                       icon: Icons.alt_route_rounded,
-                    ),
-                    CustomListTile(
-                      title: AppLocalizations.of(context)!.privateReverseDnsServers,
-                      subtitle: AppLocalizations.of(context)!.privateReverseDnsDescription,
-                      onTap: () => navigate(const PrivateReverseDnsServersScreen()),
-                      icon: Icons.person_rounded,
                     ),
                     CustomListTile(
                       title: AppLocalizations.of(context)!.dnsServerSettings,

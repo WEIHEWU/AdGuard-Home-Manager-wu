@@ -37,6 +37,7 @@ class _CustomRulesListState extends State<CustomRulesList> {
   late bool isVisible;
 
   CustomRulesSorting _sortingMethod = CustomRulesSorting.topBottom;
+  String _ruleFilter = 'active'; // 'active' | 'allow' | 'block' | 'all'
 
   @override
   initState(){
@@ -64,49 +65,70 @@ class _CustomRulesListState extends State<CustomRulesList> {
     final filteringProvider = Provider.of<FilteringProvider>(context);
     final appConfigProvider = Provider.of<AppConfigProvider>(context);
 
-    final renderData = _sortingMethod == CustomRulesSorting.bottomTop ? widget.data.reversed.toList() : widget.data.toList();
-
     bool checkIfComment(String value) {
-      final regex = RegExp(r'^(!|#).*$');
-      if (regex.hasMatch(value)) {
-        return true;
-      }
-      else {
-        return false;
-      }
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return true;
+      return RegExp(r'^(!|#).*$').hasMatch(trimmed);
     }
 
-    Widget? generateSubtitle(String rule) {
-      final allowRegex = RegExp(r'^@@.*$');
-      final blockRegex = RegExp(r'^\|\|.*$');
-      final commentRegex = RegExp(r'^(#|!).*$');
+    bool checkIfAllow(String value) {
+      return RegExp(r'^@@.*$').hasMatch(value.trim());
+    }
 
-      if (allowRegex.hasMatch(rule)) {
+    final sortedData = _sortingMethod == CustomRulesSorting.bottomTop
+      ? widget.data.reversed.toList()
+      : widget.data.toList();
+
+    final renderData = sortedData.where((rule) {
+      final isComment = checkIfComment(rule);
+      final isAllow = checkIfAllow(rule);
+      switch (_ruleFilter) {
+        case 'active':
+          return !isComment;
+        case 'allow':
+          return !isComment && isAllow;
+        case 'block':
+          return !isComment && !isAllow;
+        case 'all':
+        default:
+          return true;
+      }
+    }).toList();
+
+    final activeCount = sortedData.where((r) => !checkIfComment(r)).length;
+    final allowCount = sortedData.where((r) => !checkIfComment(r) && checkIfAllow(r)).length;
+    final blockCount = sortedData.where((r) => !checkIfComment(r) && !checkIfAllow(r)).length;
+
+    Widget? generateSubtitle(String rule) {
+      final trimmed = rule.trim();
+      if (checkIfAllow(trimmed)) {
         return Text(
           AppLocalizations.of(context)!.allowed,
           style: const TextStyle(
-            color: Colors.green
+            color: Colors.green,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
           ),
         );
       }
-      else if (blockRegex.hasMatch(rule)) {
-        return Text(
-          AppLocalizations.of(context)!.blocked,
-          style: const TextStyle(
-            color: Colors.red
-          ),
-        );
-      }
-      else if (commentRegex.hasMatch(rule)) {
+      else if (checkIfComment(trimmed)) {
         return Text(
           AppLocalizations.of(context)!.comment,
           style: const TextStyle(
-            color: Colors.grey
+            color: Colors.grey,
+            fontSize: 12,
           ),
         );
       }
       else {
-        return null;
+        return Text(
+          AppLocalizations.of(context)!.blocked,
+          style: const TextStyle(
+            color: Colors.red,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        );
       }
     }
 
@@ -119,6 +141,43 @@ class _CustomRulesListState extends State<CustomRulesList> {
         ),
       );
     }
+
+    Widget buildFilterBar() {
+      final chips = [
+        (key: 'active', label: '全部生效 ($activeCount)'),
+        (key: 'allow', label: '仅看放行 ($allowCount)'),
+        (key: 'block', label: '仅看拦截 ($blockCount)'),
+        (key: 'all', label: '显示注释 (${sortedData.length})'),
+      ];
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+        child: Row(
+          children: chips.map((c) {
+            final selected = _ruleFilter == c.key;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(
+                  c.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                ),
+                selected: selected,
+                visualDensity: VisualDensity.compact,
+                onSelected: (_) => setState(() => _ruleFilter = c.key),
+              ),
+            );
+          }).toList(),
+        ),
+      );
+    }
+
+    final totalListCount = widget.data.isEmpty
+      ? 0
+      : (renderData.isEmpty ? 2 : renderData.length + 1);
 
     return CustomTabContentList(
       loadingGenerator: () => SizedBox(
@@ -140,23 +199,47 @@ class _CustomRulesListState extends State<CustomRulesList> {
           ],
         ),
       ), 
-      itemsCount: renderData.length, 
-      contentWidget: (index) => ListTile(
-        title: Text(
-          renderData[index],
-          style: TextStyle(
-            color: checkIfComment(widget.data[index]) == true
-              ? Theme.of(context).colorScheme.onSurface.withOpacity(0.6)
-              : Theme.of(context).colorScheme.onSurface,
-            fontWeight: FontWeight.normal,
+      itemsCount: totalListCount, 
+      contentWidget: (index) {
+        if (index == 0) {
+          return buildFilterBar();
+        }
+        if (renderData.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+            child: Center(
+              child: Text(
+                '当前筛选下暂无规则',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          );
+        }
+        final rule = renderData[index - 1];
+        final isComment = checkIfComment(rule);
+        return ListTile(
+          dense: true,
+          title: Text(
+            rule,
+            style: TextStyle(
+              color: isComment
+                ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)
+                : Theme.of(context).colorScheme.onSurface,
+              fontWeight: isComment ? FontWeight.normal : FontWeight.w500,
+              fontFamily: 'monospace',
+              fontSize: 13.5,
+            ),
           ),
-        ),
-        subtitle: generateSubtitle(renderData[index]),
-        trailing: IconButton(
-          onPressed: () => widget.onRemoveCustomRule(renderData[index]),
-          icon: const Icon(Icons.delete)
-        ),
-      ), 
+          subtitle: generateSubtitle(rule),
+          trailing: IconButton(
+            onPressed: () => widget.onRemoveCustomRule(rule),
+            icon: const Icon(Icons.delete_outline_rounded, size: 20)
+          ),
+        );
+      }, 
       noData: Container(
         width: double.maxFinite,
         padding: const EdgeInsets.symmetric(horizontal: 16),

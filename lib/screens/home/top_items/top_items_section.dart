@@ -78,15 +78,6 @@ class TopItemsSection extends StatelessWidget {
           "value": element.values.first.toDouble()
         });
       });
-      if (data.length > 5) {
-        final int rest = List<int>.from(
-                data.sublist(5, data.length).map((e) => e.values.first.toInt()))
-            .reduce((a, b) => a + b);
-        values.add({
-          "label": AppLocalizations.of(context)!.others,
-          "value": rest.toDouble()
-        });
-      }
       return values;
     }
 
@@ -95,13 +86,115 @@ class TopItemsSection extends StatelessWidget {
     final double total =
         mapData.isNotEmpty ? mapData.reduce((a, b) => a + b) : 0;
 
-    return SizedBox(
+    void openMoreScreen() {
+      if (width > 700) {
+        showDialog(
+          context: context,
+          builder: (context) => TopItemsScreen(
+            type: type,
+            title: label,
+            data: data,
+            withProgressBar: withProgressBar,
+            buildValue: buildValue,
+            options: menuOptions,
+            onTapEntry: onTapEntry,
+            isFullscreen: !(width > 700 || !(Platform.isAndroid | Platform.isIOS)),
+          ),
+        );
+      } else {
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TopItemsScreen(
+                type: type,
+                title: label,
+                data: data,
+                withProgressBar: withProgressBar,
+                buildValue: buildValue,
+                options: menuOptions,
+                onTapEntry: onTapEntry,
+                isFullscreen:
+                    !(width > 700 || !(Platform.isAndroid | Platform.isIOS)),
+              ),
+            ));
+      }
+    }
+
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (data.isEmpty) _NoData(label: label),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                if (data.length > 5)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: openMoreScreen,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            AppLocalizations.of(context)!.viewMore,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 16,
+                            color: colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (data.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text(
+                  AppLocalizations.of(context)!.noDataThisSection,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
           if (data.isNotEmpty && width > 700)
             Padding(
-              padding: EdgeInsets.only(bottom: withChart == false ? 16 : 0),
+              padding: EdgeInsets.only(bottom: withChart == false ? 8 : 0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -109,7 +202,7 @@ class TopItemsSection extends StatelessWidget {
                     Expanded(
                         flex: 1,
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 250),
+                          constraints: const BoxConstraints(maxHeight: 220),
                           child: Padding(
                               padding: const EdgeInsets.all(16),
                               child: CustomPieChart(
@@ -117,51 +210,27 @@ class TopItemsSection extends StatelessWidget {
                         )),
                   Expanded(
                     flex: 2,
-                    child: Column(children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8, bottom: 16),
-                        child: Text(
-                          label,
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                      _ItemsList(
-                        colors: colors,
-                        data: data,
-                        type: type,
-                        showChart: withChart,
-                        buildValue: buildValue,
-                        menuOptions: menuOptions,
-                        onTapEntry: onTapEntry,
-                      ),
-                      if (withChart == true)
-                        OthersRowItem(
-                          items: data,
-                          showColor: true,
-                        )
-                    ]),
+                    child: _ItemsList(
+                      colors: colors,
+                      data: data,
+                      type: type,
+                      showChart: withChart,
+                      buildValue: buildValue,
+                      menuOptions: menuOptions,
+                      onTapEntry: onTapEntry,
+                    ),
                   )
                 ],
               ),
             ),
           if (data.isNotEmpty && width <= 700) ...[
-            Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Theme.of(context).colorScheme.onSurface),
-            ),
-            const SizedBox(height: 8),
-            if (withChart == true)
+            if (withChart == true && total > 0)
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(10),
                   child: SizedBox(
-                      height: 20,
+                      height: 8,
                       child: LayoutBuilder(
                           builder: (context, constraints) => Row(
                               children: lineChartData
@@ -180,84 +249,17 @@ class TopItemsSection extends StatelessWidget {
                                   .toList()))),
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: _ItemsList(
-                colors: colors,
-                data: data,
-                type: type,
-                showChart: withChart,
-                buildValue: buildValue,
-                menuOptions: menuOptions,
-                onTapEntry: onTapEntry,
-              ),
-            ),
-            OthersRowItem(
-              items: data,
-              showColor: withChart,
+            const SizedBox(height: 4),
+            _ItemsList(
+              colors: colors,
+              data: data,
+              type: type,
+              showChart: withChart,
+              buildValue: buildValue,
+              menuOptions: menuOptions,
+              onTapEntry: onTapEntry,
             ),
           ],
-          if (data.length > 5) ...[
-            Padding(
-              padding: const EdgeInsets.only(right: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                      onPressed: () => {
-                            if (width > 700)
-                              {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => TopItemsScreen(
-                                    type: type,
-                                    title: label,
-                                    data: data,
-                                    withProgressBar: withProgressBar,
-                                    buildValue: buildValue,
-                                    options: menuOptions,
-                                    onTapEntry: onTapEntry,
-                                    isFullscreen: !(width > 700 ||
-                                        !(Platform.isAndroid | Platform.isIOS)),
-                                  ),
-                                )
-                              }
-                            else
-                              {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => TopItemsScreen(
-                                        type: type,
-                                        title: label,
-                                        data: data,
-                                        withProgressBar: withProgressBar,
-                                        buildValue: buildValue,
-                                        options: menuOptions,
-                                        onTapEntry: onTapEntry,
-                                        isFullscreen: !(width > 700 ||
-                                            !(Platform.isAndroid |
-                                                Platform.isIOS)),
-                                      ),
-                                    ))
-                              }
-                          },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(AppLocalizations.of(context)!.viewMore),
-                          const SizedBox(width: 10),
-                          const Icon(
-                            Icons.arrow_forward,
-                            size: 20,
-                          )
-                        ],
-                      )),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-          ]
         ],
       ),
     );
@@ -300,36 +302,5 @@ class _ItemsList extends StatelessWidget {
                   onTapEntry: onTapEntry,
                 ))
             .toList());
-  }
-}
-
-class _NoData extends StatelessWidget {
-  final String label;
-
-  const _NoData({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          label,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onSurface),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          AppLocalizations.of(context)!.noDataThisSection,
-          style: TextStyle(
-            fontSize: 16,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
   }
 }

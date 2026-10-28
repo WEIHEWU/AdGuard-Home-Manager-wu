@@ -77,16 +77,6 @@ class _FiltersTabsViewState extends State<FiltersTabsView> with TickerProviderSt
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.verified_user_rounded),
-                          const SizedBox(width: 8),
-                          Text(AppLocalizations.of(context)!.whitelists)
-                        ],
-                      ),
-                    ),
-                    Tab(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
                           const Icon(Icons.gpp_bad_rounded),
                           const SizedBox(width: 8),
                           Text(AppLocalizations.of(context)!.blacklists)
@@ -103,6 +93,16 @@ class _FiltersTabsViewState extends State<FiltersTabsView> with TickerProviderSt
                         ],
                       ),
                     ),
+                    Tab(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.verified_user_rounded),
+                          const SizedBox(width: 8),
+                          Text(AppLocalizations.of(context)!.whitelists)
+                        ],
+                      ),
+                    ),
                   ]
                 )
               ),
@@ -112,14 +112,6 @@ class _FiltersTabsViewState extends State<FiltersTabsView> with TickerProviderSt
         body: TabBarView(
           controller: tabController,
           children: [
-            FiltersList(
-              loadStatus: filteringProvider.loadStatus,
-              scrollController: scrollController,
-              type: 'whitelist',
-              data: filteringProvider.loadStatus == LoadStatus.loaded
-                ? filteringProvider.filtering!.whitelistFilters : [],
-              onOpenDetailsScreen: widget.onOpenDetailsModal,
-            ),
             FiltersList(
               loadStatus: filteringProvider.loadStatus,
               scrollController: scrollController,
@@ -134,6 +126,14 @@ class _FiltersTabsViewState extends State<FiltersTabsView> with TickerProviderSt
               data: filteringProvider.loadStatus == LoadStatus.loaded
                 ? filteringProvider.filtering!.userRules : [],
               onRemoveCustomRule: widget.onRemoveCustomRule,
+            ),
+            FiltersList(
+              loadStatus: filteringProvider.loadStatus,
+              scrollController: scrollController,
+              type: 'whitelist',
+              data: filteringProvider.loadStatus == LoadStatus.loaded
+                ? filteringProvider.filtering!.whitelistFilters : [],
+              onOpenDetailsScreen: widget.onOpenDetailsModal,
             ),
           ]
         )

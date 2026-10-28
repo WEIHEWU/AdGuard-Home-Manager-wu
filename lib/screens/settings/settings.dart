@@ -22,7 +22,6 @@ import 'package:adguard_home_manager/providers/status_provider.dart';
 import 'package:adguard_home_manager/providers/servers_provider.dart';
 import 'package:adguard_home_manager/providers/app_config_provider.dart';
 import 'package:adguard_home_manager/services/module_config_service.dart';
-import 'package:adguard_home_manager/screens/settings/module/app_allowlist_modal.dart';
 
 final settingsNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -126,35 +125,38 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     });
   }
 
-  String _buildDiagSummary() {
+  String _buildDiagSummary(String moduleAddr) {
     if (_diagLoading) return '正在检测…';
     final running = _diag['running'] == true;
     final natOk = _diag['natOk'] == true;
     final sniOk = _diag['sniOk'] == true;
     final vpnMode = (_diag['vpnMode'] ?? 'off').toString();
     final rssMb = (_diag['rssMb'] ?? '').toString();
+    final addrSuffix = moduleAddr.isNotEmpty ? ' · $moduleAddr' : '';
     if (!running) {
-      return '未运行（点击查看日志或修复）';
+      return '未运行（点击查看日志或修复）$addrSuffix';
     }
     var vpnText = '';
     if (vpnMode == 'takeover') {
-      vpnText = ' · VPN 回国去广告';
+      vpnText = ' · VPN 接管去广告';
     } else if (vpnMode == 'bypass') {
-      vpnText = ' · VPN 翻墙防污染';
+      vpnText = ' · VPN 兼容防环路';
     }
     final memText = rssMb.isNotEmpty ? ' · $rssMb' : '';
     if (natOk && sniOk) {
-      return '运行中 · 转发正常$memText$vpnText';
+      return '运行中 · 转发正常$memText$vpnText$addrSuffix';
     }
     final issues = <String>[
       if (!natOk) 'DNS 未接管',
       if (!sniOk) 'SNI 未生效',
     ].join(' / ');
-    return '运行中 · $issues$memText';
+    return '运行中 · $issues$memText$addrSuffix';
   }
 
   Future<void> _showLogsAndDiagModal() async {
     final service = ModuleConfigService();
+    final appConfigProvider =
+        Provider.of<AppConfigProvider>(context, listen: false);
     String logs = await service.readModuleLogs(maxLines: 150);
     await _loadDiagnostics();
     if (!mounted) return;
@@ -176,7 +178,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _buildDiagSummary(),
+                      _buildDiagSummary(appConfigProvider.moduleHttpAddress),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -214,8 +216,6 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
               actions: [
                 TextButton(
                   onPressed: () async {
-                    final appConfigProvider =
-                        Provider.of<AppConfigProvider>(context, listen: false);
                     final ok = await service.reloadFirewallRules();
                     await Future.delayed(const Duration(seconds: 2));
                     await _loadDiagnostics();
@@ -260,17 +260,61 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     );
   }
 
-  Future<void> _handleOpenAppAllowlist() async {
-    await showModalBottomSheet(
+  Future<void> _showProxyUrlModal() async {
+    final editController = TextEditingController(text: _proxyUrlController.text);
+    final result = await showDialog<String>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (ctx) => const AppAllowlistModal(),
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: AlertDialog(
+          title: const Text('代理订阅链接 (PROXY_URL)'),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: editController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: '填写代理订阅链接，留空则关闭模块内置代理',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear_rounded),
+                      tooltip: '清空',
+                      onPressed: () => editController.clear(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '• 平时使用独立 VPN 客户端（Clash / FlClash / v2rayNG 等）时无需填写，模块会自动识别并兼容。\n'
+                  '• 填写或清空保存后立即生效，无需重启手机。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(editController.text.trim()),
+              child: const Text('保存并应用'),
+            ),
+          ],
+        ),
+      ),
     );
-    if (mounted) {
-      _loadDiagnostics();
-    }
+    if (result == null || !mounted) return;
+    _proxyUrlController.text = result;
+    await _saveProxyUrl();
   }
 
   Future<void> _handleCleanAdCaches() async {
@@ -451,71 +495,30 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                         children: [
                           SectionLabel(label: '模块设置'),
                           CustomListTile(
-                            icon: Icons.router_rounded,
-                            title: '模块管理地址',
-                            subtitle: appConfigProvider
-                                    .moduleHttpAddress.isNotEmpty
-                                ? 'http://${appConfigProvider.moduleHttpAddress}'
-                                : '未检测到模块',
-                          ),
-                          CustomListTile(
                             icon: Icons.health_and_safety_rounded,
                             title: '模块运行状态与自检',
-                            subtitle: _buildDiagSummary(),
+                            subtitle: _buildDiagSummary(
+                                appConfigProvider.moduleHttpAddress),
                             onTap: _showLogsAndDiagModal,
                             trailing: const Icon(Icons.chevron_right_rounded),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'PROXY_URL 订阅链接',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: _proxyUrlController,
-                                  enabled: !_proxyUrlSaving,
-                                  decoration: InputDecoration(
-                                    hintText: '填写代理订阅链接到此处',
-                                    suffixIcon: IconButton(
-                                      icon: _proxyUrlSaving
-                                          ? const SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                  strokeWidth: 2),
-                                            )
-                                          : const Icon(Icons.save_rounded),
-                                      tooltip: '保存',
-                                      onPressed: _proxyUrlSaving
-                                          ? null
-                                          : _saveProxyUrl,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                            child: Text(
-                              _proxyUrlLoading ? '正在读取当前配置…' : '保存或清空后立即自动切换代理模式（无需重启设备）',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                            ),
+                          CustomListTile(
+                            icon: Icons.vpn_key_rounded,
+                            title: '代理订阅链接 (PROXY_URL)',
+                            subtitle: _proxyUrlLoading
+                                ? '正在读取配置…'
+                                : (_proxyUrlController.text.trim().isEmpty
+                                    ? '未启用（独立 VPN 自动兼容）'
+                                    : '已配置: ${_proxyUrlController.text.trim()}'),
+                            onTap: _proxyUrlSaving ? null : _showProxyUrlModal,
+                            trailing: _proxyUrlSaving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.chevron_right_rounded),
                           ),
                           CustomListTile(
                             icon: Icons.cleaning_services_rounded,
@@ -550,15 +553,6 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                                         strokeWidth: 2),
                                   )
                                 : const Icon(Icons.chevron_right_rounded),
-                          ),
-                          CustomListTile(
-                            icon: Icons.checklist_rounded,
-                            title: '应用白名单',
-                            subtitle: (_diag['allowlistCount'] as int? ?? 0) > 0
-                                ? '已放行 ${_diag['allowlistCount']} 款应用'
-                                : '指定应用免除过滤',
-                            onTap: _handleOpenAppAllowlist,
-                            trailing: const Icon(Icons.chevron_right_rounded),
                           ),
                           CustomListTile(
                             icon: Icons.toggle_on_rounded,

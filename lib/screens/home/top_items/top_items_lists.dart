@@ -1,15 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:adguard_home_manager/l10n/app_localizations.dart';
 
 import 'package:adguard_home_manager/screens/home/top_items/top_items_section.dart';
 
-import 'package:adguard_home_manager/functions/number_format.dart';
 import 'package:adguard_home_manager/functions/snackbar.dart';
 import 'package:adguard_home_manager/classes/process_modal.dart';
-import 'package:adguard_home_manager/models/applied_filters.dart';
 import 'package:adguard_home_manager/providers/app_config_provider.dart';
 import 'package:adguard_home_manager/providers/logs_provider.dart';
 import 'package:adguard_home_manager/functions/copy_clipboard.dart';
@@ -31,23 +27,11 @@ class TopItemsLists extends StatelessWidget {
     final appConfigProvider = Provider.of<AppConfigProvider>(context);
     final logsProvider = Provider.of<LogsProvider>(context);
 
-    List<Widget> bottom = [
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Divider(
-          thickness: 1,
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
-        ),
-      ),
-      const SizedBox(height: 16),
-    ];
-
     void filterDomainLogs({required String value}) {
       logsProvider.setSearchText(value);
       logsProvider.setSelectedClients(null);
-      logsProvider.setAppliedFilters(AppliedFiters(
-          selectedResultStatus: 'all', searchText: value, clients: []));
-      appConfigProvider.setSelectedScreen(2);
+      logsProvider.setSelectedResultStatus(value: 'all', refetch: true);
+      appConfigProvider.setSelectedScreen(1);
     }
 
     void blockUnblock(
@@ -80,120 +64,62 @@ class TopItemsLists extends StatelessWidget {
           successMessage: AppLocalizations.of(context)!.copiedClipboard);
     }
 
+    final visibleOrder = order
+        .where((item) =>
+            item == HomeTopItems.queriedDomains ||
+            item == HomeTopItems.blockedDomains)
+        .toList();
+
     return Column(
-      children: order.asMap().entries.map((item) {
-        switch (item.value) {
+      children: visibleOrder.map((item) {
+        switch (item) {
           case HomeTopItems.queriedDomains:
-            return Column(
-              children: [
-                TopItemsSection(
-                  label: AppLocalizations.of(context)!.topQueriedDomains,
-                  type: HomeTopItems.queriedDomains,
-                  data: statusProvider.serverStatus?.stats.topQueriedDomains ??
-                      [],
-                  withChart: true,
-                  withProgressBar: true,
-                  buildValue: (v) => v.toString(),
-                  menuOptions: (v) => [
-                    MenuOption(
-                        title: AppLocalizations.of(context)!.blockDomain,
-                        icon: Icons.block_rounded,
-                        action: () => blockUnblock(
-                            domain: v.toString(), newStatus: 'block')),
-                    MenuOption(
-                        title: AppLocalizations.of(context)!.copyClipboard,
-                        icon: Icons.copy_rounded,
-                        action: () => copyValueClipboard(v)),
-                  ],
-                  onTapEntry: (v) => filterDomainLogs(value: v.toString()),
-                ),
-                if (item.key < order.length - 1) ...bottom
+            return TopItemsSection(
+              label: AppLocalizations.of(context)!.topQueriedDomains,
+              type: HomeTopItems.queriedDomains,
+              data: statusProvider.serverStatus?.stats.topQueriedDomains ?? [],
+              withChart: true,
+              withProgressBar: true,
+              buildValue: (v) => v.toString(),
+              menuOptions: (v) => [
+                MenuOption(
+                    title: AppLocalizations.of(context)!.blockDomain,
+                    icon: Icons.block_rounded,
+                    action: () =>
+                        blockUnblock(domain: v.toString(), newStatus: 'block')),
+                MenuOption(
+                    title: AppLocalizations.of(context)!.copyClipboard,
+                    icon: Icons.copy_rounded,
+                    action: () => copyValueClipboard(v)),
               ],
+              onTapEntry: (v) => filterDomainLogs(value: v.toString()),
             );
 
           case HomeTopItems.blockedDomains:
-            return Column(
-              children: [
-                TopItemsSection(
-                  label: AppLocalizations.of(context)!.topBlockedDomains,
-                  type: HomeTopItems.blockedDomains,
-                  data: statusProvider.serverStatus?.stats.topBlockedDomains ??
-                      [],
-                  withChart: true,
-                  withProgressBar: true,
-                  buildValue: (v) => v.toString(),
-                  menuOptions: (v) => [
-                    MenuOption(
-                        title: AppLocalizations.of(context)!.unblockDomain,
-                        icon: Icons.check_rounded,
-                        action: () =>
-                            blockUnblock(domain: v, newStatus: 'unblock')),
-                    MenuOption(
-                        title: AppLocalizations.of(context)!.copyClipboard,
-                        icon: Icons.copy_rounded,
-                        action: () => copyValueClipboard(v))
-                  ],
-                  onTapEntry: (v) => filterDomainLogs(value: v),
-                ),
-                if (item.key < order.length - 1) ...bottom
+            return TopItemsSection(
+              label: AppLocalizations.of(context)!.topBlockedDomains,
+              type: HomeTopItems.blockedDomains,
+              data: statusProvider.serverStatus?.stats.topBlockedDomains ?? [],
+              withChart: true,
+              withProgressBar: true,
+              buildValue: (v) => v.toString(),
+              menuOptions: (v) => [
+                MenuOption(
+                    title: AppLocalizations.of(context)!.unblockDomain,
+                    icon: Icons.check_rounded,
+                    action: () =>
+                        blockUnblock(domain: v, newStatus: 'unblock')),
+                MenuOption(
+                    title: AppLocalizations.of(context)!.copyClipboard,
+                    icon: Icons.copy_rounded,
+                    action: () => copyValueClipboard(v))
               ],
+              onTapEntry: (v) => filterDomainLogs(value: v),
             );
 
           case HomeTopItems.topUpstreams:
-            return statusProvider.serverStatus!.stats.topUpstreamResponses !=
-                    null
-                ? Column(
-                    children: [
-                      TopItemsSection(
-                        label: AppLocalizations.of(context)!.topUpstreams,
-                        type: HomeTopItems.topUpstreams,
-                        data: statusProvider
-                                .serverStatus?.stats.topUpstreamResponses ??
-                            [],
-                        withChart: true,
-                        withProgressBar: true,
-                        buildValue: (v) => v.toString(),
-                        menuOptions: (v) => [
-                          MenuOption(
-                              title:
-                                  AppLocalizations.of(context)!.copyClipboard,
-                              icon: Icons.copy_rounded,
-                              action: () => copyValueClipboard(v))
-                        ],
-                      ),
-                      if (item.key < order.length - 1) ...bottom
-                    ],
-                  )
-                : const SizedBox();
-
           case HomeTopItems.avgUpstreamResponseTime:
-            return statusProvider.serverStatus!.stats.topUpstreamsAvgTime !=
-                    null
-                ? Column(
-                    children: [
-                      TopItemsSection(
-                        label: AppLocalizations.of(context)!
-                            .averageUpstreamResponseTime,
-                        type: HomeTopItems.avgUpstreamResponseTime,
-                        data: statusProvider
-                                .serverStatus?.stats.topUpstreamsAvgTime ??
-                            [],
-                        withChart: false,
-                        withProgressBar: false,
-                        buildValue: (v) =>
-                            "${doubleFormat(v * 1000, Platform.localeName)} ms",
-                        menuOptions: (v) => [
-                          MenuOption(
-                              title:
-                                  AppLocalizations.of(context)!.copyClipboard,
-                              icon: Icons.copy_rounded,
-                              action: () => copyValueClipboard(v))
-                        ],
-                      ),
-                      if (item.key < order.length - 1) ...bottom
-                    ],
-                  )
-                : const SizedBox();
+            return const SizedBox.shrink();
         }
       }).toList(),
     );
