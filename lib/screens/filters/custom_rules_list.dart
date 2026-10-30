@@ -39,6 +39,81 @@ class _CustomRulesListState extends State<CustomRulesList> {
   CustomRulesSorting _sortingMethod = CustomRulesSorting.topBottom;
   String _ruleFilter = 'active'; // 'active' | 'allow' | 'block' | 'all'
 
+  List<String>? _cachedSourceData;
+  CustomRulesSorting? _cachedSortingMethod;
+  String? _cachedRuleFilter;
+  List<String> _renderData = const [];
+  int _activeCount = 0;
+  int _allowCount = 0;
+  int _blockCount = 0;
+  int _totalCount = 0;
+
+  static bool _checkIfComment(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ||
+        trimmed.startsWith('!') ||
+        trimmed.startsWith('#');
+  }
+
+  static bool _checkIfAllow(String value) {
+    return value.trim().startsWith('@@');
+  }
+
+  void _ensureFilteredRulesComputed() {
+    if (identical(_cachedSourceData, widget.data) &&
+        _cachedSortingMethod == _sortingMethod &&
+        _cachedRuleFilter == _ruleFilter) {
+      return;
+    }
+
+    final sortedData = _sortingMethod == CustomRulesSorting.bottomTop
+        ? widget.data.reversed.toList(growable: false)
+        : widget.data;
+
+    final rendered = <String>[];
+    var active = 0;
+    var allow = 0;
+    var block = 0;
+
+    for (final rule in sortedData) {
+      final isComment = _checkIfComment(rule);
+      final isAllow = !isComment && _checkIfAllow(rule);
+      if (!isComment) {
+        active++;
+        if (isAllow) {
+          allow++;
+        } else {
+          block++;
+        }
+      }
+
+      switch (_ruleFilter) {
+        case 'active':
+          if (!isComment) rendered.add(rule);
+          break;
+        case 'allow':
+          if (isAllow) rendered.add(rule);
+          break;
+        case 'block':
+          if (!isComment && !isAllow) rendered.add(rule);
+          break;
+        case 'all':
+        default:
+          rendered.add(rule);
+          break;
+      }
+    }
+
+    _cachedSourceData = widget.data;
+    _cachedSortingMethod = _sortingMethod;
+    _cachedRuleFilter = _ruleFilter;
+    _renderData = rendered;
+    _activeCount = active;
+    _allowCount = allow;
+    _blockCount = block;
+    _totalCount = sortedData.length;
+  }
+
   @override
   initState(){
     super.initState();
@@ -65,43 +140,15 @@ class _CustomRulesListState extends State<CustomRulesList> {
     final filteringProvider = Provider.of<FilteringProvider>(context);
     final appConfigProvider = Provider.of<AppConfigProvider>(context);
 
-    bool checkIfComment(String value) {
-      final trimmed = value.trim();
-      if (trimmed.isEmpty) return true;
-      return RegExp(r'^(!|#).*$').hasMatch(trimmed);
-    }
-
-    bool checkIfAllow(String value) {
-      return RegExp(r'^@@.*$').hasMatch(value.trim());
-    }
-
-    final sortedData = _sortingMethod == CustomRulesSorting.bottomTop
-      ? widget.data.reversed.toList()
-      : widget.data.toList();
-
-    final renderData = sortedData.where((rule) {
-      final isComment = checkIfComment(rule);
-      final isAllow = checkIfAllow(rule);
-      switch (_ruleFilter) {
-        case 'active':
-          return !isComment;
-        case 'allow':
-          return !isComment && isAllow;
-        case 'block':
-          return !isComment && !isAllow;
-        case 'all':
-        default:
-          return true;
-      }
-    }).toList();
-
-    final activeCount = sortedData.where((r) => !checkIfComment(r)).length;
-    final allowCount = sortedData.where((r) => !checkIfComment(r) && checkIfAllow(r)).length;
-    final blockCount = sortedData.where((r) => !checkIfComment(r) && !checkIfAllow(r)).length;
+    _ensureFilteredRulesComputed();
+    final renderData = _renderData;
+    final activeCount = _activeCount;
+    final allowCount = _allowCount;
+    final blockCount = _blockCount;
 
     Widget? generateSubtitle(String rule) {
       final trimmed = rule.trim();
-      if (checkIfAllow(trimmed)) {
+      if (_checkIfAllow(trimmed)) {
         return Text(
           AppLocalizations.of(context)!.allowed,
           style: const TextStyle(
@@ -111,7 +158,7 @@ class _CustomRulesListState extends State<CustomRulesList> {
           ),
         );
       }
-      else if (checkIfComment(trimmed)) {
+      else if (_checkIfComment(trimmed)) {
         return Text(
           AppLocalizations.of(context)!.comment,
           style: const TextStyle(
@@ -147,7 +194,7 @@ class _CustomRulesListState extends State<CustomRulesList> {
         (key: 'active', label: '全部生效 ($activeCount)'),
         (key: 'allow', label: '仅看放行 ($allowCount)'),
         (key: 'block', label: '仅看拦截 ($blockCount)'),
-        (key: 'all', label: '显示注释 (${sortedData.length})'),
+        (key: 'all', label: '显示注释 ($_totalCount)'),
       ];
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -219,7 +266,7 @@ class _CustomRulesListState extends State<CustomRulesList> {
           );
         }
         final rule = renderData[index - 1];
-        final isComment = checkIfComment(rule);
+        final isComment = _checkIfComment(rule);
         return ListTile(
           dense: true,
           title: Text(

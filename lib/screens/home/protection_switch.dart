@@ -76,12 +76,15 @@ class ProtectionSwitch extends StatelessWidget {
                       if (status.timeGeneralDisabled > 0 &&
                           statusProvider.currentDeadline != null) ...[
                         const SizedBox(height: 2),
-                        Text(
-                          '${l10n.remainingTime}: ${formatRemainingSeconds(statusProvider.remainingTime)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
+                        ValueListenableBuilder<int>(
+                          valueListenable: statusProvider.remainingTimeNotifier,
+                          builder: (context, remainingSeconds, _) => Text(
+                            '${l10n.remainingTime}: ${formatRemainingSeconds(remainingSeconds)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color:
+                                  Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ],

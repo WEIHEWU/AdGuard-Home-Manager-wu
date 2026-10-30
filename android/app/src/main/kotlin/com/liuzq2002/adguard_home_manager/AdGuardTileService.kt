@@ -19,6 +19,8 @@ object AdGuardModuleController {
     private const val USER = "root"
     private const val PASSWORD = "root"
     private const val TAG = "AdGuardModule"
+    @Volatile
+    private var cachedSuBin: String? = null
 
     fun readPort(context: Context? = null, forceYaml: Boolean = false): Int? {
         if (!forceYaml) {
@@ -113,13 +115,19 @@ object AdGuardModuleController {
     }
 
     private fun runSu(command: String): String? {
-        val candidates = listOf(
+        val defaultCandidates = listOf(
             "su",
             "/sbin/su",
             "/system/bin/su",
             "/system/xbin/su",
             "/debug_ramdisk/su",
         )
+        val first = cachedSuBin
+        val candidates = if (first != null) {
+            listOf(first) + defaultCandidates.filter { it != first }
+        } else {
+            defaultCandidates
+        }
         for (su in candidates) {
             try {
                 val process = ProcessBuilder(su, "-c", command)
@@ -127,7 +135,10 @@ object AdGuardModuleController {
                     .start()
                 val output = process.inputStream.bufferedReader().use { it.readText() }
                 val code = process.waitFor()
-                if (code == 0) return output
+                if (code == 0) {
+                    cachedSuBin = su
+                    return output
+                }
                 val detail = output.trim().take(200)
                 Log.w(TAG, "su($su) exit=$code${if (detail.isEmpty()) "" else " | $detail"}")
             } catch (t: Throwable) {
@@ -300,7 +311,7 @@ class AdGuardTileService : TileService() {
     }
 
     private fun updateTile(state: Int) {
-        Handler(Looper.getMainLooper()).post {
+        mainHandler.post {
             try {
                 val tile = qsTile ?: return@post
                 tile.state = state

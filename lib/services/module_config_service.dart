@@ -9,6 +9,13 @@ class ModuleConfigService {
   static const MethodChannel _installedAppsChannel =
       MethodChannel('com.jgeek00.adguard_home_manager/installed_apps');
 
+  static Map<String, dynamic>? _cachedDiag;
+  static DateTime? _cachedDiagTime;
+  static String? _cachedProxyUrl;
+  static DateTime? _cachedProxyUrlTime;
+  static List<Map<String, dynamic>>? _cachedApps;
+  static DateTime? _cachedAppsTime;
+
   bool get _isAndroid => Platform.isAndroid;
 
   Future<bool> hasRoot() async {
@@ -63,8 +70,15 @@ class ModuleConfigService {
     return parseHttpAddress(yaml);
   }
 
-  Future<String> readProxyUrl() async {
+  Future<String> readProxyUrl({bool forceRefresh = false}) async {
     if (!_isAndroid) return '';
+    if (!forceRefresh &&
+        _cachedProxyUrl != null &&
+        _cachedProxyUrlTime != null &&
+        DateTime.now().difference(_cachedProxyUrlTime!) <
+            const Duration(seconds: 5)) {
+      return _cachedProxyUrl!;
+    }
     try {
       final result = await Process.run('su', ['-c', 'cat $moduleConfigPath']);
       if (result.exitCode != 0) {
@@ -75,14 +89,21 @@ class ModuleConfigService {
             (line) => line.trimLeft().startsWith('PROXY_URL='),
             orElse: () => '',
           );
-      if (line.isEmpty) return '';
+      if (line.isEmpty) {
+        _cachedProxyUrl = '';
+        _cachedProxyUrlTime = DateTime.now();
+        return '';
+      }
       // 模块配置默认写入 PROXY_URL=" "（引号内一个空格）作为占位，
       // 去掉引号后再 trim，空白值统一按“未设置”处理，不显示到输入框。
-      return line
+      final parsed = line
           .substring(line.indexOf('PROXY_URL=') + 'PROXY_URL='.length)
           .replaceAll('"', '')
           .replaceAll("'", '')
           .trim();
+      _cachedProxyUrl = parsed;
+      _cachedProxyUrlTime = DateTime.now();
+      return parsed;
     } catch (_) {
       return '';
     }
@@ -122,6 +143,8 @@ class ModuleConfigService {
       await writer.stdin.close();
       final writeResult = await writer.exitCode;
       if (writeResult == 0) {
+        _cachedProxyUrl = value;
+        _cachedProxyUrlTime = DateTime.now();
         Process.run('su', ['-c', 'sh /data/adb/agh/scripts/ProxyConfig.sh --once >/dev/null 2>&1 &']);
       }
       return writeResult == 0;
@@ -130,7 +153,9 @@ class ModuleConfigService {
     }
   }
 
-  Future<Map<String, dynamic>> getModuleDiagnostics() async {
+  Future<Map<String, dynamic>> getModuleDiagnostics({
+    bool forceRefresh = false,
+  }) async {
     if (!_isAndroid) {
       return {
         'running': false,
@@ -142,6 +167,13 @@ class ModuleConfigService {
         'rssMb': '',
         'allowlistCount': 0,
       };
+    }
+    if (!forceRefresh &&
+        _cachedDiag != null &&
+        _cachedDiagTime != null &&
+        DateTime.now().difference(_cachedDiagTime!) <
+            const Duration(seconds: 5)) {
+      return Map<String, dynamic>.from(_cachedDiag!);
     }
     try {
       const cmd = '''
@@ -199,7 +231,7 @@ echo "ALLOW=\$allow_cnt"
       if (kb != null && kb > 0) {
         rssMb = '${(kb / 1024).toStringAsFixed(1)} MB';
       }
-      return {
+      final diag = {
         'running': pid.isNotEmpty,
         'pid': pid,
         'dnsPort': dnsPort,
@@ -209,6 +241,9 @@ echo "ALLOW=\$allow_cnt"
         'rssMb': rssMb,
         'allowlistCount': allowlistCount,
       };
+      _cachedDiag = diag;
+      _cachedDiagTime = DateTime.now();
+      return Map<String, dynamic>.from(diag);
     } catch (_) {
       return {
         'running': false,
@@ -260,6 +295,8 @@ echo "ALLOW=\$allow_cnt"
           'if pidof -x /data/adb/agh/scripts/iptables.sh >/dev/null 2>&1; then sh /data/adb/agh/scripts/iptables.sh --reload >/dev/null 2>&1; else sh /data/adb/agh/scripts/iptables.sh >/dev/null 2>&1 & fi'
         ],
       );
+      _cachedDiag = null;
+      _cachedDiagTime = null;
       return result.exitCode == 0;
     } catch (_) {
       return false;
@@ -352,6 +389,8 @@ chmod 644 /data/adb/agh/app-allow.txt
 sh /data/adb/agh/scripts/iptables.sh --apply-allowlist >/dev/null 2>&1 &
 ''';
       final result = await Process.run('su', ['-c', cmd]);
+      _cachedDiag = null;
+      _cachedDiagTime = null;
       return result.exitCode == 0;
     } catch (_) {
       return false;
@@ -360,12 +399,26 @@ sh /data/adb/agh/scripts/iptables.sh --apply-allowlist >/dev/null 2>&1 &
 
   Future<List<Map<String, dynamic>>> getInstalledApps({
     bool includeSystem = false,
+    bool forceRefresh = false,
   }) async {
     if (!_isAndroid) return [];
+    if (!forceRefresh &&
+        !includeSystem &&
+        _cachedApps != null &&
+        _cachedAppsTime != null &&
+        DateTime.now().difference(_cachedAppsTime!) <
+            const Duration(seconds: 60)) {
+      return _cachedApps!
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
     try {
       final rawList = await _installedAppsChannel.invokeMethod<List<dynamic>>(
         'getInstalledApps',
-        {'includeSystem': includeSystem},
+        {
+          'includeSystem': includeSystem,
+          'forceRefresh': forceRefresh,
+        },
       );
       if (rawList != null && rawList.isNotEmpty) {
         final List<Map<String, dynamic>> apps = [];
@@ -388,7 +441,11 @@ sh /data/adb/agh/scripts/iptables.sh --apply-allowlist >/dev/null 2>&1 &
           }
         }
         apps.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
-        return apps;
+        if (!includeSystem) {
+          _cachedApps = apps;
+          _cachedAppsTime = DateTime.now();
+        }
+        return apps.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {
       // Fallback to root pm list packages below
@@ -417,7 +474,11 @@ sh /data/adb/agh/scripts/iptables.sh --apply-allowlist >/dev/null 2>&1 &
         }
       }
       apps.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
-      return apps;
+      if (!includeSystem) {
+        _cachedApps = apps;
+        _cachedAppsTime = DateTime.now();
+      }
+      return apps.map((e) => Map<String, dynamic>.from(e)).toList();
     } catch (_) {
       return [];
     }

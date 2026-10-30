@@ -51,7 +51,7 @@ class _HomeState extends State<Home> {
     final serversProvider = Provider.of<ServersProvider>(context);
     final statusProvider = Provider.of<StatusProvider>(context);
     final appConfigProvider = Provider.of<AppConfigProvider>(context);
-    final logsProvider = Provider.of<LogsProvider>(context);
+    final logsProvider = Provider.of<LogsProvider>(context, listen: false);
 
     final width = MediaQuery.of(context).size.width;
 

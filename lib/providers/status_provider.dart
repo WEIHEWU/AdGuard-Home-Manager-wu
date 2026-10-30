@@ -28,6 +28,7 @@ class StatusProvider with ChangeNotifier {
   DateTime? _currentDeadline;
   Timer? _countdown;
   int _remaining = 0;
+  final ValueNotifier<int> remainingTimeNotifier = ValueNotifier<int>(0);
 
   LoadStatus get loadStatus {
     return _loadStatus;
@@ -75,6 +76,7 @@ class StatusProvider with ChangeNotifier {
 
     _currentDeadline = deadline;
     _remaining = deadline.difference(DateTime.now()).inSeconds + 1;
+    remainingTimeNotifier.value = _remaining;
 
     _countdown = Timer.periodic(
       const Duration(seconds: 1),
@@ -85,7 +87,7 @@ class StatusProvider with ChangeNotifier {
           getServerStatus();
         } else {
           _remaining = _remaining - 1;
-          notifyListeners();
+          remainingTimeNotifier.value = _remaining;
         }
       },
     );
@@ -96,6 +98,7 @@ class StatusProvider with ChangeNotifier {
       _countdown!.cancel();
       _countdown = null;
       _remaining = 0;
+      remainingTimeNotifier.value = 0;
       _currentDeadline = null;
     }
   }

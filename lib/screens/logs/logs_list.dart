@@ -56,10 +56,9 @@ class _LogsListWidgetState extends State<LogsListWidget> {
         logsProvider.isLoadingMore == false) {
       logsProvider.fetchLogs(loadingMore: true);
     }
-    if (scrollNotification.metrics.pixels > 0) {
-      setState(() => showDivider = false);
-    } else {
-      setState(() => showDivider = true);
+    final nextShowDivider = scrollNotification.metrics.pixels <= 0;
+    if (nextShowDivider != showDivider) {
+      setState(() => showDivider = nextShowDivider);
     }
 
     return false;

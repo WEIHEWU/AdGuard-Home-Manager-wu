@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -69,10 +70,26 @@ void main() async {
   appConfigProvider.setAppInfo(appInfo);
 
   if (Platform.isAndroid) {
-    final yamlAddress = await moduleConfigService.readHttpAddress();
-    if (yamlAddress != null && yamlAddress.isNotEmpty) {
-      appConfigProvider.setModuleHttpAddress(yamlAddress);
-      await serversProvider.autoConnectModule(yamlAddress);
+    final cachedAddr = appConfigProvider.moduleHttpAddress;
+    if (cachedAddr.isNotEmpty) {
+      await serversProvider.autoConnectModule(cachedAddr);
+      unawaited(
+        moduleConfigService.readHttpAddress().then((yamlAddress) async {
+          if (yamlAddress != null &&
+              yamlAddress.isNotEmpty &&
+              yamlAddress != cachedAddr) {
+            appConfigProvider.setModuleHttpAddress(yamlAddress);
+            await serversProvider.autoConnectModule(yamlAddress);
+            await statusProvider.getServerStatus(withLoadingIndicator: false);
+          }
+        }),
+      );
+    } else {
+      final yamlAddress = await moduleConfigService.readHttpAddress();
+      if (yamlAddress != null && yamlAddress.isNotEmpty) {
+        appConfigProvider.setModuleHttpAddress(yamlAddress);
+        await serversProvider.autoConnectModule(yamlAddress);
+      }
     }
   }
 
@@ -80,20 +97,15 @@ void main() async {
         providers: [
           ChangeNotifierProvider(create: ((context) => serversProvider)),
           ChangeNotifierProvider(create: ((context) => appConfigProvider)),
-          ChangeNotifierProvider(create: ((context) => statusProvider)),
-          ChangeNotifierProvider(create: ((context) => logsProvider)),
-          ChangeNotifierProvider(create: ((context) => filtersProvider)),
-          ChangeNotifierProvider(create: ((context) => rewriteRulesProvider)),
-          ChangeNotifierProvider(create: ((context) => dnsProvider)),
+          ChangeNotifierProxyProvider<ServersProvider, StatusProvider>(
+            create: (context) => statusProvider,
+            update: (context, servers, status) => status!..update(servers),
+          ),
           ChangeNotifierProxyProvider2<ServersProvider, StatusProvider,
               FilteringProvider>(
             create: (context) => filtersProvider,
             update: (context, servers, status, filtering) =>
                 filtering!..update(servers, status),
-          ),
-          ChangeNotifierProxyProvider<ServersProvider, StatusProvider>(
-            create: (context) => statusProvider,
-            update: (context, servers, status) => status!..update(servers),
           ),
           ChangeNotifierProxyProvider<ServersProvider, LogsProvider>(
             create: (context) => logsProvider,

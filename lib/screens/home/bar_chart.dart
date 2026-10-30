@@ -23,7 +23,7 @@ class _HomeBarChartState extends State<HomeBarChart> {
   Widget build(BuildContext context) {
     final statusProvider = Provider.of<StatusProvider>(context);
     final appConfigProvider = Provider.of<AppConfigProvider>(context);
-    final logsProvider = Provider.of<LogsProvider>(context);
+    final logsProvider = Provider.of<LogsProvider>(context, listen: false);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final locale = Localizations.localeOf(context).toString();

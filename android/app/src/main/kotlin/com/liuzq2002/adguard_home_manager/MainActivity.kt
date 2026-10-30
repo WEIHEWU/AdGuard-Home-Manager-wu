@@ -28,6 +28,13 @@ class MainActivity: FlutterActivity() {
     private val localNetworkRequestCode = 0x4C4E
     private var localNetworkResult: MethodChannel.Result? = null
 
+    @Volatile
+    private var cachedInstalledApps: List<Map<String, Any?>>? = null
+    @Volatile
+    private var cachedInstalledAppsIncludeSystem: Boolean = false
+    @Volatile
+    private var cachedInstalledAppsTimestamp: Long = 0L
+
     override fun onStart() {
         super.onStart()
         TileService.requestListeningState(
@@ -71,9 +78,23 @@ class MainActivity: FlutterActivity() {
             when (call.method) {
                 "getInstalledApps" -> {
                     val includeSystem = call.argument<Boolean>("includeSystem") ?: false
+                    val forceRefresh = call.argument<Boolean>("forceRefresh") ?: false
+                    val now = System.currentTimeMillis()
+                    val cached = cachedInstalledApps
+                    if (!forceRefresh &&
+                        cached != null &&
+                        cachedInstalledAppsIncludeSystem == includeSystem &&
+                        now - cachedInstalledAppsTimestamp < 60_000L
+                    ) {
+                        result.success(cached)
+                        return@setMethodCallHandler
+                    }
                     Thread {
                         try {
                             val apps = queryInstalledApps(includeSystem)
+                            cachedInstalledApps = apps
+                            cachedInstalledAppsIncludeSystem = includeSystem
+                            cachedInstalledAppsTimestamp = System.currentTimeMillis()
                             runOnUiThread { result.success(apps) }
                         } catch (t: Throwable) {
                             runOnUiThread {

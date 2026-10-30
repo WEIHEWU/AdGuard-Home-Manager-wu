@@ -25,7 +25,7 @@ class TopItemsLists extends StatelessWidget {
   Widget build(BuildContext context) {
     final statusProvider = Provider.of<StatusProvider>(context);
     final appConfigProvider = Provider.of<AppConfigProvider>(context);
-    final logsProvider = Provider.of<LogsProvider>(context);
+    final logsProvider = Provider.of<LogsProvider>(context, listen: false);
 
     void filterDomainLogs({required String value}) {
       logsProvider.setSearchText(value);

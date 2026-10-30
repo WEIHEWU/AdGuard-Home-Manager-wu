@@ -258,11 +258,8 @@ class ServersProvider with ChangeNotifier {
 
       if (defaultServer != null) {
         _selectedServer = defaultServer;
-        // final client = ApiClient(server: defaultServer);
         final client2 = ApiClientV2(server: defaultServer);
-        // _apiClient = client;
         _apiClient2 = client2;
-        initializateServer(defaultServer, /*client,*/ client2);
       }
     } else {
       notifyListeners();

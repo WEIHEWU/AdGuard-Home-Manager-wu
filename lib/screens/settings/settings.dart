@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:adguard_home_manager/l10n/app_localizations.dart';
@@ -116,8 +115,9 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     });
   }
 
-  Future<void> _loadDiagnostics() async {
-    final diag = await ModuleConfigService().getModuleDiagnostics();
+  Future<void> _loadDiagnostics({bool forceRefresh = false}) async {
+    final diag = await ModuleConfigService()
+        .getModuleDiagnostics(forceRefresh: forceRefresh);
     if (!mounted) return;
     setState(() {
       _diag = diag;
@@ -158,18 +158,16 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     final appConfigProvider =
         Provider.of<AppConfigProvider>(context, listen: false);
     String logs = await service.readModuleLogs(maxLines: 150);
-    await _loadDiagnostics();
+    await _loadDiagnostics(forceRefresh: true);
     if (!mounted) return;
 
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: StatefulBuilder(
-            builder: (ctx, setModalState) {
-              return AlertDialog(
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return AlertDialog(
               title: const Text('模块自检与运行日志'),
               content: SizedBox(
                 width: 520,
@@ -182,7 +180,8 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: (_diag['running'] == true && _diag['natOk'] == true)
+                        color: (_diag['running'] == true &&
+                                _diag['natOk'] == true)
                             ? Colors.green
                             : Colors.orange,
                       ),
@@ -202,7 +201,9 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                       child: SingleChildScrollView(
                         reverse: true,
                         child: SelectableText(
-                          logs.isEmpty ? '暂无日志记录（/data/adb/agh/agh.log 为空）' : logs,
+                          logs.isEmpty
+                              ? '暂无日志记录（/data/adb/agh/agh.log 为空）'
+                              : logs,
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 12,
@@ -218,7 +219,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                   onPressed: () async {
                     final ok = await service.reloadFirewallRules();
                     await Future.delayed(const Duration(seconds: 2));
-                    await _loadDiagnostics();
+                    await _loadDiagnostics(forceRefresh: true);
                     logs = await service.readModuleLogs(maxLines: 150);
                     setModalState(() {});
                     if (mounted) {
@@ -241,7 +242,7 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                 ),
                 TextButton(
                   onPressed: () async {
-                    await _loadDiagnostics();
+                    await _loadDiagnostics(forceRefresh: true);
                     logs = await service.readModuleLogs(maxLines: 150);
                     setModalState(() {});
                   },
@@ -252,9 +253,8 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
                   child: const Text('关闭'),
                 ),
               ],
-              );
-            },
-          ),
+            );
+          },
         );
       },
     );
@@ -265,51 +265,48 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     final result = await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (ctx) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: AlertDialog(
-          title: const Text('代理订阅链接 (PROXY_URL)'),
-          content: SizedBox(
-            width: 480,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: editController,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: '填写代理订阅链接，留空则关闭模块内置代理',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.clear_rounded),
-                      tooltip: '清空',
-                      onPressed: () => editController.clear(),
-                    ),
+      builder: (ctx) => AlertDialog(
+        title: const Text('代理订阅链接 (PROXY_URL)'),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: editController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: '填写代理订阅链接，留空则关闭模块内置代理',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.clear_rounded),
+                    tooltip: '清空',
+                    onPressed: () => editController.clear(),
                   ),
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  '• 平时使用独立 VPN 客户端（Clash / FlClash / v2rayNG 等）时无需填写，模块会自动识别并兼容。\n'
-                  '• 填写或清空保存后立即生效，无需重启手机。',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                  ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '• 平时使用独立 VPN 客户端（Clash / FlClash / v2rayNG 等）时无需填写，模块会自动识别并兼容。\n'
+                '• 填写或清空保存后立即生效，无需重启手机。',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(editController.text.trim()),
-              child: const Text('保存并应用'),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(editController.text.trim()),
+            child: const Text('保存并应用'),
+          ),
+        ],
       ),
     );
     if (result == null || !mounted) return;
@@ -337,30 +334,27 @@ class _SettingsWidgetState extends State<_SettingsWidget> {
     final mode = await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (ctx) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: AlertDialog(
-          title: const Text('恢复默认自定义规则'),
-          content: const Text(
-            '请选择恢复方式：\n\n'
-            '• 智能补全（推荐）：保留你自己手动添加的规则，仅补全被误删的模块默认防广告规则。\n'
-            '• 完全重置：清除所有手动改动的规则，完全恢复为模块出厂默认规则。',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop('reset'),
-              child: const Text('完全重置'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop('merge'),
-              child: const Text('智能补全（推荐）'),
-            ),
-          ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('恢复默认自定义规则'),
+        content: const Text(
+          '请选择恢复方式：\n\n'
+          '• 智能补全（推荐）：保留你自己手动添加的规则，仅补全被误删的模块默认防广告规则。\n'
+          '• 完全重置：清除所有手动改动的规则，完全恢复为模块出厂默认规则。',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('reset'),
+            child: const Text('完全重置'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop('merge'),
+            child: const Text('智能补全（推荐）'),
+          ),
+        ],
       ),
     );
     if (mode == null || !mounted) return;

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:adguard_home_manager/models/rewrite_status.dart';
 import 'package:adguard_home_manager/models/querylog_config.dart';
@@ -49,36 +50,39 @@ class ApiClientV2 {
   }
 
   Future<ApiResponse> getServerStatus() async {
-    final results1 = await Future.wait([
+    final results = await Future.wait([
       HttpRequestClient.get(urlPath: "/stats", server: server),
       HttpRequestClient.get(urlPath: "/status", server: server),
       HttpRequestClient.get(urlPath: "/filtering/status", server: server),
-    ]);
-    // 这些接口在精简核心中可能不存在，缺失时按默认值处理，不能影响整体状态加载
-    final results2 = await Future.wait([
+      // 以下接口在精简核心中可能不存在，缺失时按默认值处理，不能影响整体状态加载
       HttpRequestClient.get(urlPath: "/safebrowsing/status", server: server),
       HttpRequestClient.get(urlPath: "/parental/status", server: server),
     ]);
-    if (results1.map((e) => e.successful).every((e) => e == true) &&
-        results1.map((e) => e.body).every((e) => e != null)) {
+    if (results.take(3).every((e) => e.successful && e.body != null)) {
       try {
-        final Map<String, dynamic>? safebrowsingData =
-            results2[0].successful && results2[0].body != null
-                ? jsonDecode(results2[0].body!)
-                : null;
-        final Map<String, dynamic>? parentalData =
-            results2[1].successful && results2[1].body != null
-                ? jsonDecode(results2[1].body!)
-                : null;
-        final Map<String, dynamic> mappedData = {
-          'stats': jsonDecode(results1[0].body!),
-          'status': jsonDecode(results1[1].body!),
-          'filtering': jsonDecode(results1[2].body!),
-          'safeBrowsingEnabled': safebrowsingData,
-          'parentalControlEnabled': parentalData,
-        };
-        return ApiResponse(
-            successful: true, content: ServerStatus.fromJson(mappedData));
+        final statsBody = results[0].body!;
+        final statusBody = results[1].body!;
+        final filteringBody = results[2].body!;
+        final sbBody =
+            results[3].successful ? results[3].body : null;
+        final parentalBody =
+            results[4].successful ? results[4].body : null;
+
+        final serverStatus = await Isolate.run(() {
+          final Map<String, dynamic>? safebrowsingData =
+              sbBody != null ? jsonDecode(sbBody) : null;
+          final Map<String, dynamic>? parentalData =
+              parentalBody != null ? jsonDecode(parentalBody) : null;
+          final Map<String, dynamic> mappedData = {
+            'stats': jsonDecode(statsBody),
+            'status': jsonDecode(statusBody),
+            'filtering': jsonDecode(filteringBody),
+            'safeBrowsingEnabled': safebrowsingData,
+            'parentalControlEnabled': parentalData,
+          };
+          return ServerStatus.fromJson(mappedData);
+        });
+        return ApiResponse(successful: true, content: serverStatus);
       } on FormatException {
         return const ApiResponse(successful: false);
       } catch (e) {
@@ -143,11 +147,12 @@ class ApiClientV2 {
         urlPath:
             '/querylog?${count != null ? 'limit=$count' : ''}${offset != null ? '&offset=$offset' : ''}${olderThan != null ? '&older_than=${olderThan.toIso8601String()}' : ''}${responseStatus != null ? '&response_status=$responseStatus' : ''}${search != null ? '&search=$search' : ''}',
         server: server);
-    if (result.successful == true) {
+    if (result.successful == true && result.body != null) {
       try {
-        return ApiResponse(
-            successful: true,
-            content: LogsData.fromJson(jsonDecode(result.body!)));
+        final body = result.body!;
+        final logsData =
+            await Isolate.run(() => LogsData.fromJson(jsonDecode(body)));
+        return ApiResponse(successful: true, content: logsData);
       } catch (e) {
         return const ApiResponse(successful: false);
       }
@@ -159,11 +164,12 @@ class ApiClientV2 {
   Future<ApiResponse> getFilteringRules() async {
     final result = await HttpRequestClient.get(
         urlPath: '/filtering/status', server: server);
-    if (result.successful == true) {
+    if (result.successful == true && result.body != null) {
       try {
-        return ApiResponse(
-            successful: true,
-            content: FilteringStatus.fromJson(jsonDecode(result.body!)));
+        final body = result.body!;
+        final status = await Isolate.run(
+            () => FilteringStatus.fromJson(jsonDecode(body)));
+        return ApiResponse(successful: true, content: status);
       } catch (e) {
         return const ApiResponse(successful: false);
       }
@@ -185,13 +191,13 @@ class ApiClientV2 {
         urlPath: '/filtering/status', server: server);
     if (results1.successful == true && results1.body != null) {
       try {
-        return ApiResponse(
-            successful: true,
-            content: Filtering.fromJson({
-              ...jsonDecode(results1.body!),
+        final body = results1.body!;
+        final filtering = await Isolate.run(() => Filtering.fromJson({
+              ...jsonDecode(body),
               // 精简核心已移除 blocked_services 接口，这里保持空列表
               "blocked_services": []
             }));
+        return ApiResponse(successful: true, content: filtering);
       } catch (e) {
         return const ApiResponse(successful: false);
       }

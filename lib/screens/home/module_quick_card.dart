@@ -1,7 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -39,8 +37,9 @@ class _ModuleQuickActionsState extends State<ModuleQuickActions> {
     _loadDiagnostics();
   }
 
-  Future<void> _loadDiagnostics() async {
-    final diag = await ModuleConfigService().getModuleDiagnostics();
+  Future<void> _loadDiagnostics({bool forceRefresh = false}) async {
+    final diag = await ModuleConfigService()
+        .getModuleDiagnostics(forceRefresh: forceRefresh);
     if (!mounted) return;
     setState(() {
       _diag = diag;
@@ -69,7 +68,7 @@ class _ModuleQuickActionsState extends State<ModuleQuickActions> {
 
     await Future.delayed(const Duration(milliseconds: 500));
     await Future.wait([
-      _loadDiagnostics(),
+      _loadDiagnostics(forceRefresh: true),
       statusProvider.getServerStatus(withLoadingIndicator: false),
     ]);
 
@@ -414,16 +413,14 @@ class _FalsePositiveAssistantModalState
           item.ruleText.toLowerCase().contains(_searchQuery);
     }).toList();
 
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.82,
-        decoration: BoxDecoration(
-          color: colorScheme.surface.withValues(alpha: 0.94),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.82,
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
             Center(
               child: Container(
                 margin: const EdgeInsets.only(top: 10, bottom: 4),
@@ -594,7 +591,6 @@ class _FalsePositiveAssistantModalState
             ),
           ],
         ),
-      ),
     );
   }
 }
